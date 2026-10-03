@@ -1,4 +1,4 @@
-export type {AubitData, CategoryId, PriorityLevel} from '#src/lib/schema/aubit.schema.ts'
+export type {AubitData, CategoryId, PriorityLevel} from '#src/lib/aubitSchema.ts'
 export {Category} from './Category.ts'
 export * from './edits/index.ts'
 export type {SourceLocation} from './Finding.ts'

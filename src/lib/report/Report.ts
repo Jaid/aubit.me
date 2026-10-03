@@ -1,4 +1,4 @@
-import type {AubitData, CategoryId} from '#src/lib/schema/aubit.schema.ts'
+import type {AubitData, CategoryId} from '#src/lib/aubitSchema.ts'
 import type {Edit} from './edits/index.ts'
 import type {SourceLocation} from './Finding.ts'
 

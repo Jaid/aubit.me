@@ -1,6 +1,6 @@
-import type {PriorityLevel} from '#src/lib/schema/aubit.schema.ts'
+import type {PriorityLevel} from '#src/lib/aubitSchema.ts'
 
-import {prioritySchema} from '#src/lib/schema/aubit.schema.ts'
+import {priorityDefinitions} from '#src/lib/aubitSchema.ts'
 
 type PriorityAppearance = {
   chroma: number
@@ -36,17 +36,17 @@ const appearances: Record<PriorityLevel, PriorityAppearance> = {
 }
 /** severity level of a finding, P0 (critical) to P4 (trivial) */
 export class Priority {
-  static readonly all: ReadonlyArray<Priority> = prioritySchema.options.map(option => {
-    const level = option.value
-    const name = option.description?.split(' – ').at(-1) ?? `level ${level}`
-    return new Priority(level, name)
-  })
+  static readonly all: ReadonlyArray<Priority> = priorityDefinitions.map(Priority.fromDefinition)
   static get(level: PriorityLevel) {
     const priority = Priority.all.find(entry => entry.level === level)
     if (!priority) {
       throw new RangeError(`Unknown priority level: ${level}`)
     }
     return priority
+  }
+  private static fromDefinition({level, description}: typeof priorityDefinitions[number]) {
+    const name = description?.split(' – ').at(-1) ?? `level ${level}`
+    return new Priority(level, name)
   }
   readonly level: PriorityLevel
   readonly name: string

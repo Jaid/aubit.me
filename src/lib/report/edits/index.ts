@@ -1,4 +1,4 @@
-import type {EditData} from '#src/lib/schema/aubit.schema.ts'
+import type {EditData} from '#src/lib/aubitSchema.ts'
 import type {Edit} from './base/Edit.ts'
 
 import {createNeedle} from '../needles/index.ts'

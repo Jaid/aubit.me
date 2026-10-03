@@ -1,11 +1,11 @@
-import type {AubitData} from '#src/lib/schema/aubit.schema.ts'
+import type {AubitData} from '#src/lib/aubitSchema.ts'
 import type {SourceLocation} from './Finding.ts'
 
+import schema from 'aubit-schema'
 import stringifyClank from 'stringify-clank'
 import {isScalar, LineCounter, parseDocument, stringify, visit} from 'yaml'
 
 import {assertInputSize, assertSafeData, maxFindings} from '#src/lib/limits.ts'
-import schema from '#src/lib/schema/aubit.schema.ts'
 
 import {Report} from './Report.ts'
 import {SourceMap} from './SourceMap.ts'
@@ -66,8 +66,11 @@ export function parseSnapshot(text: string): ParseSnapshot {
       return inputFailure(text, 'Enter an Aubit report with an entries mapping, or choose New or Example.')
     }
     try {
-      JSON.parse(text); result.language = 'json'
-    } catch { /* JSON is also valid YAML. */ }
+      JSON.parse(text)
+      result.language = 'json'
+    } catch {
+      // JSON is also valid YAML.
+    }
     const lineCounter = new LineCounter
     const document = parseDocument(text, {
       lineCounter,
@@ -121,7 +124,7 @@ export function parseSnapshot(text: string): ParseSnapshot {
     if (!validation.success) {
       result.issues = validation.error.issues.slice(0, 100).map(issue => {
         const path = issue.path.map(segment => (typeof segment === 'number' ? segment : String(segment)))
-        const locationPath = issue.code === 'unrecognized_keys' && issue.keys[0] !== undefined ? [...path, issue.keys[0]] : path
+        const locationPath = issue.code === 'unrecognized_keys' ? [...path, issue.keys[0]] : path
         return {
           source: 'schema',
           message: (path.length ? `${formatPath(path)}: ` : '') + issue.message,

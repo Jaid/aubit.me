@@ -3,6 +3,7 @@ import type {OutputTab} from '#component/OutputPane'
 import type {Finding, InputIssue} from '#src/lib/report/index.ts'
 import type {DragEvent} from 'react'
 
+import {jsonSchema} from 'aubit-schema'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Group, Panel, Separator, useDefaultLayout} from 'react-resizable-panels'
 
@@ -18,7 +19,6 @@ import {exampleYaml, layoutStorage, readTab, saveTab} from '#src/lib/inputStore.
 import {assertInputSize, inputByteLength, maxInputBytes} from '#src/lib/limits.ts'
 import {consumePermalink, readPermalinkState} from '#src/lib/permalink.ts'
 import {formatInput} from '#src/lib/report/parseInput.ts'
-import {jsonSchema} from '#src/lib/schema/aubit.schema.ts'
 
 import css from './style.module.sass'
 

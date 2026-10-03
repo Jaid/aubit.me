@@ -2,6 +2,7 @@ import type {MonacoApi, MonacoEditor} from '#src/lib/monaco.ts'
 import type {InputIssue} from '#src/lib/report/index.ts'
 import type {Ref} from 'react'
 
+import {jsonSchema} from 'aubit-schema'
 import Monacozen from 'monacozen'
 import {useEffect, useImperativeHandle, useRef} from 'react'
 
@@ -9,7 +10,6 @@ import EditorBoundary from '#component/EditorBoundary'
 import {useTheme} from '#src/hooks/useTheme.ts'
 import {needsSyntaxOnlyEditor, registerSafeYamlLanguage, safeYamlLanguage} from '#src/lib/editorSafety.ts'
 import {revealRange} from '#src/lib/monaco.ts'
-import {jsonSchema} from '#src/lib/schema/aubit.schema.ts'
 
 import css from './style.module.sass'
 

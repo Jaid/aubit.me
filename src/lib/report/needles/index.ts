@@ -1,4 +1,4 @@
-import type {NeedleData} from '#src/lib/schema/aubit.schema.ts'
+import type {NeedleData} from '#src/lib/aubitSchema.ts'
 import type {Needle} from './base/Needle.ts'
 
 import {LineNeedle} from './LineNeedle.ts'

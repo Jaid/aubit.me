@@ -1,6 +1,6 @@
-import type {CategoryId} from '#src/lib/schema/aubit.schema.ts'
+import type {CategoryId} from '#src/lib/aubitSchema.ts'
 
-import {categorySchema} from '#src/lib/schema/aubit.schema.ts'
+import {categoryDefinitions} from '#src/lib/aubitSchema.ts'
 
 const rootHues: Record<string, number> = {
   correctness: 300,
@@ -16,13 +16,16 @@ const rootHues: Record<string, number> = {
 }
 /** hierarchical finding category like “security.leak” */
 export class Category {
-  static readonly all: ReadonlyArray<Category> = categorySchema.options.map(option => new Category(option.value, option.description))
+  static readonly all: ReadonlyArray<Category> = categoryDefinitions.map(Category.fromDefinition)
   static get(id: CategoryId) {
     const category = Category.all.find(entry => entry.id === id)
     if (!category) {
       throw new RangeError(`Unknown category: ${id}`)
     }
     return category
+  }
+  private static fromDefinition({id, description}: typeof categoryDefinitions[number]) {
+    return new Category(id, description)
   }
   readonly description: string | undefined
   readonly id: CategoryId

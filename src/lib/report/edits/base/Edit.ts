@@ -1,4 +1,4 @@
-import type {EditAction} from '#src/lib/schema/aubit.schema.ts'
+import type {EditAction} from '#src/lib/aubitSchema.ts'
 
 /** rough visual meaning of an edit, used for coloring */
 export type EditTone = 'additive' | 'destructive' | 'modifying' | 'neutral' | 'structural'
