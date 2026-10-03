@@ -1,0 +1,22 @@
+{
+  "name": "vite-session",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Disposable Vite development and production-preview sessions",
+  "exports": {
+    ".": {
+      "types": "./src/ViteSession.ts",
+      "default": "./src/ViteSession.ts"
+    }
+  },
+  "overrides": {
+    "typescript": "npm:typescript-classic@6.0.4"
+  },
+  "peerDependencies": {
+    "vite": "*"
+  },
+  "devDependencies": {
+    "vite": "8.3.2"
+  }
+}

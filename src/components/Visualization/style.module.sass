@@ -1,0 +1,339 @@
+@use '../../styles/tone' as *
+
+.container
+  display: flex
+  flex-direction: column
+  gap: 18px
+  max-width: 980px
+  margin-inline: auto
+  padding: 22px clamp(12px, 3vw, 32px) 64px
+
+.summary
+  display: grid
+  grid-template-columns: auto 1fr
+  grid-template-areas: "headline bar" "categories categories"
+  align-items: center
+  gap: 14px 24px
+  padding: 16px 18px
+  border-radius: 12px
+  border: 1px solid var(--line)
+  @container (width < 560px)
+    grid-template-columns: 1fr
+    grid-template-areas: "headline" "bar" "categories"
+
+.headline
+  grid-area: headline
+  display: flex
+  align-items: center
+  gap: 10px
+
+.total
+  font-size: 46px
+  font-weight: 700
+  line-height: 1
+  font-variant-numeric: tabular-nums
+  letter-spacing: -0.03em
+  color: tone(50%, 78%)
+
+.totalLabel
+  display: flex
+  flex-direction: column
+  gap: 2px
+
+.totalNoun
+  font-size: 15px
+  font-weight: 600
+
+.totalDetail
+  font-size: 12px
+  color: var(--muted)
+  white-space: nowrap
+
+.priorityBar
+  grid-area: bar
+  display: flex
+  flex-direction: column
+  gap: 8px
+  min-width: 0
+
+.track
+  display: flex
+  gap: 3px
+  height: 10px
+
+.segment
+  flex-basis: 0
+  border-radius: 3px
+  background: tone(62%, 66%)
+  transition: opacity 150ms
+  &[data-dimmed]
+    opacity: 0.2
+
+.legend
+  display: flex
+  flex-wrap: wrap
+  gap: 2px 4px
+
+.legendItem
+  display: inline-flex
+  align-items: center
+  gap: 5px
+  padding: 2px 7px
+  border: 1px solid transparent
+  border-radius: 6px
+  background: transparent
+  color: var(--muted)
+  font: inherit
+  font-size: 12px
+  cursor: pointer
+  &:hover:not(:disabled)
+    color: var(--foreground)
+    background: var(--hover)
+  &[aria-pressed=true]
+    color: var(--foreground)
+    border-color: tone(70%, 45%)
+    background: tone(95%, 22%, 60%, 0.45)
+  &:disabled
+    cursor: default
+    opacity: 0.4
+
+.dot
+  width: 8px
+  height: 8px
+  border-radius: 50%
+  background: tone(62%, 66%)
+
+.legendCode
+  font-weight: 650
+
+.legendCount
+  font-variant-numeric: tabular-nums
+  color: var(--faint)
+
+.categories
+  grid-area: categories
+  display: flex
+  flex-wrap: wrap
+  gap: 6px
+
+.categoryChip
+  display: inline-flex
+  align-items: center
+  gap: 6px
+  padding: 3px 9px
+  border-radius: 999px
+  border: 1px solid tone(85%, 35%, 60%, 0.45)
+  background: transparent
+  color: tone(42%, 80%)
+  font: inherit
+  font-size: 12px
+  cursor: pointer
+  &:hover
+    background: tone(95%, 25%, 50%, 0.45)
+  &[aria-pressed=true]
+    background: tone(92%, 30%, 100%, 0.45)
+    border-color: tone(70%, 50%)
+
+.chipCount
+  font-variant-numeric: tabular-nums
+  opacity: 0.65
+
+.toolbar
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  gap: 8px
+
+.search
+  flex: 1 1 200px
+  min-width: 0
+  padding: 6px 11px
+  border: 1px solid var(--line)
+  border-radius: 8px
+  background: var(--background)
+  color: inherit
+  font: inherit
+  font-size: 13px
+  outline: none
+  user-select: text
+  &:focus
+    border-color: var(--line-strong)
+  &::placeholder
+    color: var(--faint)
+
+.segmented
+  display: inline-flex
+  padding: 2px
+  border: 1px solid var(--line)
+  border-radius: 8px
+
+.segmentButton
+  padding: 4px 11px
+  border: none
+  border-radius: 6px
+  background: transparent
+  color: var(--muted)
+  font: inherit
+  font-size: 12.5px
+  cursor: pointer
+  &:hover
+    color: var(--foreground)
+  &[aria-checked=true]
+    color: var(--foreground)
+    background: var(--hover)
+
+.filterNote
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 10px
+  margin-top: -6px
+  font-size: 12.5px
+  color: var(--muted)
+
+.reset
+  padding: 0
+  border: none
+  background: none
+  color: var(--accent)
+  font: inherit
+  cursor: pointer
+  &:hover
+    text-decoration: underline
+
+.noMatches
+  padding: 40px 0
+  text-align: center
+  color: var(--muted)
+  font-style: italic
+
+.group
+  display: flex
+  flex-direction: column
+  gap: 10px
+
+.groupTitle
+  display: flex
+  align-items: center
+  gap: 8px
+  margin: 6px 0 0
+  font-size: 12px
+  font-weight: 650
+  letter-spacing: 0.06em
+  text-transform: uppercase
+  color: var(--muted)
+
+.groupDot
+  width: 8px
+  height: 8px
+  border-radius: 50%
+  background: tone(62%, 66%)
+
+.groupCount
+  margin-left: auto
+  font-weight: 500
+  letter-spacing: 0
+  text-transform: none
+  color: var(--faint)
+  font-variant-numeric: tabular-nums
+
+.fileTitle
+  font-size: 13px
+  letter-spacing: 0
+  text-transform: none
+  color: var(--foreground)
+  overflow-wrap: anywhere
+
+.cards
+  display: flex
+  flex-direction: column
+  gap: 10px
+
+.fileTouches
+  display: flex
+  flex-direction: column
+  gap: 8px
+
+.fileTouch
+  display: flex
+  flex-direction: column
+  gap: 10px
+  padding: 12px 14px
+  border-radius: 10px
+  border: 1px solid var(--line)
+  border-left: 3px solid tone(58%, 68%)
+  &[data-active]
+    border-color: tone(70%, 45%)
+    border-left-color: tone(58%, 68%)
+
+.touchFinding
+  display: flex
+  align-items: baseline
+  gap: 8px
+  padding: 0
+  border: none
+  background: none
+  color: var(--foreground)
+  font: inherit
+  font-size: 14px
+  font-weight: 600
+  text-align: left
+  cursor: pointer
+  &:hover
+    text-decoration: underline
+    text-decoration-color: var(--faint)
+
+.touchBadge
+  flex-shrink: 0
+  padding: 0 5px
+  border-radius: 4px
+  font-size: 11px
+  font-weight: 700
+  color: tone(45%, 82%)
+  background: tone(93%, 30%, 70%, 0.45)
+
+.touchEdits
+  display: flex
+  flex-direction: column
+  gap: 10px
+
+.empty
+  display: flex
+  flex-direction: column
+  align-items: center
+  justify-content: center
+  gap: 8px
+  height: 100%
+  padding: 24px
+  text-align: center
+  color: var(--muted)
+
+.emptyIcon
+  font-size: 40px
+  color: var(--positive)
+
+.emptyTitle
+  font-size: 18px
+  font-weight: 650
+  color: var(--foreground)
+
+.emptyText
+  font-size: 13px
+
+.more
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 12px
+  padding: 20px
+  color: var(--muted)
+  font-size: 12px
+  text-align: center
+  button
+    border: 1px solid var(--line-strong)
+    border-radius: 8px
+    padding: 8px 14px
+    background: var(--hover)
+    color: var(--foreground)
+    font: inherit
+    cursor: pointer

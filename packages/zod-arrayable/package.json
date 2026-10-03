@@ -1,0 +1,21 @@
+{
+  "name": "zod-arrayable",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Nonempty scalar-or-array schemas for the Aubit report format",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:Jaid/mage.git",
+    "directory": "packages/zod-arrayable"
+  },
+  "main": "src/main.ts",
+  "scripts": {
+    "test": "bun test ./test"
+  },
+  "overrides": {
+    "typescript": "npm:typescript-classic@6.0.4"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}

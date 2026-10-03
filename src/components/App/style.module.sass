@@ -1,0 +1,147 @@
+.workspace
+  height: 100dvh
+  width: 100%
+  overflow: hidden
+
+.container
+  height: 100%
+  min-height: 0
+
+.panel
+  height: 100%
+  min-width: 0
+  min-height: 0
+
+.pane
+  position: relative
+  display: flex
+  flex-direction: column
+  height: 100%
+  overflow: hidden
+
+.paneBody
+  flex: 1
+  min-height: 0
+
+.separator
+  position: relative
+  flex-basis: 5px
+  background: var(--line)
+  outline: none
+  transition: background 120ms
+  &[aria-orientation=vertical]
+    cursor: col-resize
+  &[aria-orientation=horizontal]
+    cursor: row-resize
+  &[data-separator=hover], &[data-separator=active], &:focus-visible
+    background: var(--accent)
+
+.dropOverlay
+  position: absolute
+  inset: 8px
+  z-index: 20
+  display: grid
+  place-items: center
+  text-align: center
+  padding: 20px
+  border: 2px dashed var(--accent)
+  border-radius: 12px
+  background: oklch(from var(--background) l c h / 90%)
+  color: var(--foreground)
+  font-size: 16px
+  pointer-events: none
+
+.inputFooter
+  display: flex
+  justify-content: space-between
+  gap: 10px
+  flex-shrink: 0
+  min-height: 25px
+  padding: 5px 12px
+  border-top: 1px solid var(--line)
+  color: var(--muted)
+  font-size: 10.5px
+  white-space: nowrap
+  span:first-child
+    overflow: hidden
+    text-overflow: ellipsis
+
+.notice
+  position: fixed
+  bottom: 18px
+  left: 50%
+  z-index: 100
+  display: flex
+  align-items: center
+  gap: 12px
+  transform: translateX(-50%)
+  width: max-content
+  max-width: min(680px, calc(100vw - 24px))
+  padding: 12px 16px
+  border: 1px solid var(--line-strong)
+  border-radius: 10px
+  background: var(--surface)
+  color: var(--foreground)
+  box-shadow: 0 8px 30px #0004
+  font-size: 12.5px
+  button
+    border: none
+    background: none
+    color: var(--muted)
+    font-size: 20px
+    cursor: pointer
+
+.help
+  width: min(680px, calc(100vw - 32px))
+  max-height: 85dvh
+  overflow: auto
+  border: 1px solid var(--line-strong)
+  border-radius: 14px
+  padding: 22px 26px
+  background: var(--background)
+  color: var(--foreground)
+  font: 14px/1.65 var(--font-main)
+  &::backdrop
+    background: #0009
+    backdrop-filter: blur(5px)
+  header
+    display: flex
+    align-items: center
+    justify-content: space-between
+    gap: 16px
+    h2
+      margin: 0
+    button
+      border: 0
+      background: none
+      font: inherit
+      font-size: 26px
+      cursor: pointer
+  h3
+    margin-top: 24px
+    font-size: 14px
+  p
+    color: var(--muted)
+  pre
+    overflow: auto
+    padding: 14px
+    border-radius: 8px
+    background: var(--code-surface)
+    font-size: 11.5px
+
+.schemaButton
+  border: 1px solid var(--line-strong)
+  border-radius: 7px
+  padding: 8px 12px
+  background: var(--hover)
+  font: inherit
+  cursor: pointer
+
+.inputFooter button
+  flex-shrink: 0
+  padding: 0
+  border: 0
+  background: none
+  color: var(--accent)
+  font: inherit
+  cursor: pointer

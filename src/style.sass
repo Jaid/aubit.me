@@ -1,0 +1,84 @@
+@use 'antimono/css/antimono-static.css'
+
+@import-normalize
+@import-sanitize
+
+@font-face
+  font-family: main
+  src: local("Geologica NF"), local("Geologica"), local("Lexend"), local("Inter")
+  font-display: swap
+
+:root
+  color-scheme: dark
+  --foreground: light-dark(black, white)
+  --background: light-dark(white, black)
+  --muted: light-dark(#666, #8d8d8d)
+  --faint: light-dark(#999, #5c5c5c)
+  --line: light-dark(#e2e2e2, #222)
+  --line-strong: light-dark(#c4c4c4, #3a3a3a)
+  --hover: light-dark(rgb(0 0 0 / 5%), rgb(255 255 255 / 7%))
+  --surface: light-dark(#f7f7f7, #0b0b0b)
+  --code-surface: light-dark(#f4f4f2, #101010)
+  --positive: light-dark(oklch(52% 0.15 150), oklch(78% 0.17 150))
+  --negative: light-dark(oklch(53% 0.19 25), oklch(72% 0.17 25))
+  --caution: light-dark(oklch(56% 0.13 75), oklch(82% 0.14 85))
+  --accent: light-dark(oklch(50% 0.17 260), oklch(76% 0.13 255))
+  --font-main: main, system-ui, sans-serif, Twitter Color Emoji, Symbols Nerd Font
+  --font-code: Antimono, JetBrains Mono, Twitter Color Emoji, Symbols Nerd Font, monospace
+
+:root[data-light]
+  color-scheme: light
+
+@media (prefers-color-scheme: light)
+  :root:not([data-dark])
+    color-scheme: light
+
+html,
+body
+  height: 100%
+  margin: 0
+  overflow: hidden
+
+body
+  background: var(--background)
+  color: var(--foreground)
+  font-family: var(--font-main)
+
+a
+  color: var(--accent)
+  &:hover
+    text-decoration: underline
+
+code,
+pre,
+kbd
+  font-family: var(--font-code)
+
+pre>code
+  white-space: pre-wrap
+
+::selection
+  background: oklch(from var(--accent) l c h / 30%)
+
+button
+  font-family: inherit
+
+
+*, *::before, *::after
+  box-sizing: border-box
+
+:focus-visible
+  outline: 2px solid var(--accent)
+  outline-offset: 3px
+
+[hidden]
+  display: none !important
+
+button, input, select, textarea
+  color: inherit
+
+@media (prefers-reduced-motion: reduce)
+  *, *::before, *::after
+    scroll-behavior: auto !important
+    animation-duration: 0s !important
+    transition-duration: 0s !important

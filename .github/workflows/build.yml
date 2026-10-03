@@ -1,0 +1,47 @@
+name: build
+on:
+  push:
+    branches: [main]
+    tags: [v*]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6.0.2
+      - name: setup Bun
+        uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: setup Node for browser automation
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          package-manager-cache: false
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: typecheck
+        run: bun run typecheck
+      - name: unit and component tests
+        run: bun run test
+      - name: build and production browser checks
+        run: bun run test-live
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
+      - name: browser verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-verification
+          path: out/test/browser/
+          retention-days: 14
+      - name: static site artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: aubit-me-dist
+          path: dist/
+          if-no-files-found: error

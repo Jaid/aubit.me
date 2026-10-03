@@ -1,0 +1,74 @@
+entries:
+  exposed_env_file:
+    title: Sensitive environment file is tracked
+    description: A production environment file containing credentials is committed next to application source.
+    priority: 0
+    category:
+      - security
+      - security.leak
+    suggestedChanges:
+      - file: .env.production
+        edit:
+          - action: delete
+      - file: .gitignore
+        edit:
+          action: append
+          content: |
+            .env.production
+  inconsistent_user_naming:
+    title: User identifier naming is inconsistent
+    priority: 2
+    category:
+      - consistency
+      - consistency.naming
+    suggestedChanges:
+      - file: src/lib/user.ts
+        edit:
+          action: edit
+          needle:
+            regex: userID
+            flags: i
+          replacement: userId
+      - file: src/api/users.ts
+        edit:
+          action: edit
+          needle:
+            regex: userID
+            flags:
+              - i
+              - m
+          replacement: userId
+  readme_spelling:
+    title: Installation heading contains a typo
+    description: The public README uses “Instalation” in its primary setup heading.
+    priority: 3
+    category: language.spelling
+    suggestedChanges:
+      - file: README.md
+        edit:
+          action: edit
+          needle: "## Instalation"
+          replacement: "## Installation"
+  missing_aria_label:
+    title: Icon-only close button lacks a label
+    priority: 1
+    category: accessibility
+    suggestedChanges:
+      - file: src/components/Dialog.tsx
+        edit:
+          action: insert_after
+          needle:
+            line: 42
+          content: '      aria-label="Close dialog"'
+  redundant_hot_path_sort:
+    title: Request hot path repeatedly sorts static data
+    description: The same immutable lookup entries are sorted for every request.
+    priority: 2
+    category: performance
+    suggestedChanges:
+      - file: src/lib/lookup.ts
+        edit:
+          - action: ensure
+          - action: prepend
+            content: |
+              const sortedEntries = entries.toSorted(compareEntries)

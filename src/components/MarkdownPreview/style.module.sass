@@ -1,0 +1,14 @@
+@use '../../styles/prose' as *
+
+.scroller
+  height: 100%
+  overflow: auto
+  scrollbar-width: thin
+  user-select: text
+
+.article
+  @include prose
+  max-width: 860px
+  margin-inline: auto
+  padding: 28px clamp(16px, 4vw, 40px) 64px
+  font-size: 15px

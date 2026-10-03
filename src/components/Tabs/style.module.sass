@@ -1,0 +1,33 @@
+.tabs
+  display: flex
+  align-self: stretch
+  min-width: 0
+  overflow-x: auto
+  scrollbar-width: none
+  margin-bottom: -1px
+
+.tab
+  position: relative
+  display: inline-flex
+  align-items: center
+  gap: 6px
+  flex-shrink: 0
+  padding: 0 12px
+  border: none
+  border-bottom: 2px solid transparent
+  background: transparent
+  color: var(--muted)
+  font: inherit
+  font-size: 12.5px
+  white-space: nowrap
+  cursor: pointer
+  transition: color 120ms, border-color 120ms
+  &:hover
+    color: var(--foreground)
+  &[aria-selected=true]
+    color: var(--foreground)
+    border-bottom-color: var(--foreground)
+  &:focus-visible
+    outline: 2px solid var(--accent)
+    outline-offset: -4px
+    border-radius: 6px

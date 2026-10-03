@@ -1,30 +1,90 @@
 {
   "name": "aubit.me",
+  "displayName": "Aubit Viewer",
   "version": "0.1.0",
   "type": "module",
+  "private": true,
+  "description": "A private, local-first workbench for Aubit code-audit reports",
   "funding": "https://github.com/sponsors/Jaid",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Jaid/aubit.me.git"
   },
-  "exports": {
-    ".": {
-      "default": "./src/main.ts"
-    }
-  },
   "imports": {
+    "#component/*": "./src/components/*/index.tsx",
     "#src/*": "./src/*",
     "#root/*": "./*"
   },
   "scripts": {
-    "test": "bun test --max-concurrency 1 ./test"
+    "build": "bun run vite build",
+    "build:development": "bun run vite build --mode development",
+    "check": "bun run lint && bun run test && bun run test-live",
+    "dev": "bun run vite --host 127.0.0.1",
+    "lint": "bun run typecheck && bun run lint:style",
+    "lint:style": "bunx --bun eslint .",
+    "preview": "bun run vite preview --host 127.0.0.1",
+    "test": "bun run test:unit && bun run test:dom",
+    "test:browser": "bun run scripts/testBrowser.ts",
+    "test:dom": "bun test --preload ./test/happydom.ts ./test/components.dom.ts",
+    "test:unit": "bun test ./test/main.test.ts ./test/robustness.test.ts ./test/permalink.test.ts",
+    "test-live": "bun run build && bun run test:browser",
+    "typecheck": "tsc --noEmit --noUnusedLocals --pretty false",
+    "vite": "bun --bun node_modules/vite/dist/node/cli --configLoader native"
+  },
+  "overrides": {
+    "typescript": "npm:typescript-classic@6.0.4"
+  },
+  "patchedDependencies": {
+    "happy-dom@20.14.5": "patches/happy-dom@20.14.5.patch"
+  },
+  "dependencies": {
+    "antimono": "0.1.0",
+    "clsx": "2.1.1",
+    "dompurify": "3.4.16",
+    "marked": "18.0.14",
+    "monacozen": "0.5.1",
+    "mount-root": "0.5.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-resizable-panels": "4.14.1",
+    "stringify-clank": "0.1.1",
+    "yaml": "2.9.1",
+    "zod": "4.6.5",
+    "zod-arrayable": "workspace:*"
   },
   "devDependencies": {
+    "autoprefixer": "10.6.1",
+    "babel-plugin-react-compiler": "1.0.0",
+    "browserslist": "4.29.3",
+    "caniuse-lite": "1.0.30001814",
     "eslint": "10.11.0",
     "eslint-config-jaid": "34.0.0",
-    "tsconfig-jaid-bun": "16.0.0",
+    "postcss": "8.5.28",
+    "postcss-normalize": "13.0.1",
+    "puppeteer-core": "25.12.0",
+    "sass-embedded": "1.105.1",
+    "tsconfig-jaid-react": "16.0.0",
     "typescript": "npm:typescript-classic@6.0.4",
-    "@types/bun": "1.4.2"
-  }
+    "vite": "8.3.2",
+    "vite-plugin-media-mixins": "0.10.0",
+    "vite-session": "workspace:*",
+    "@babel/core": "8.0.6",
+    "@happy-dom/global-registrator": "20.14.5",
+    "@rolldown/plugin-babel": "0.2.4",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "6.1.1",
+    "@types/bun": "1.4.2",
+    "@types/postcss-normalize": "9.0.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  },
+  "engines": {
+    "bun": ">=1.4.2",
+    "node": ">=26"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

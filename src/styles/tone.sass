@@ -1,0 +1,6 @@
+@use 'sass:string'
+
+// Colors derived from the --hue and --chroma custom properties of the closest element that sets them. Emitted as plain strings because Sass cannot evaluate oklch() with var() channels. Use a $chroma below 1 for tinted backgrounds, so very light or dark shades stay subtle and in gamut.
+@function tone($light, $dark, $alpha: 100%, $chroma: 1)
+  $c: 'calc(var(--chroma) * #{$chroma})'
+  @return string.unquote('light-dark(oklch(#{$light} #{$c} var(--hue) / #{$alpha}), oklch(#{$dark} #{$c} var(--hue) / #{$alpha}))')

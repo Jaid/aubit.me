@@ -1,0 +1,66 @@
+@mixin prose
+  line-height: 1.6
+  overflow-wrap: anywhere
+  :where(h1, h2, h3, h4)
+    line-height: 1.25
+    margin-block: 1.6em 0.6em
+    font-weight: 650
+    text-wrap: balance
+  :where(h1)
+    font-size: 1.9em
+    margin-top: 0
+  :where(h2)
+    font-size: 1.35em
+  :where(h3)
+    font-size: 1.05em
+  :where(p, ul, ol, table, pre, blockquote)
+    margin-block: 0.75em
+  :where(hr)
+    border: none
+    border-top: 1px solid var(--line)
+    margin-block: 2.2em
+  :where(code)
+    font-size: 0.88em
+  :where(:not(pre) > code)
+    padding: 0.1em 0.35em
+    border-radius: 4px
+    background: var(--code-surface)
+    border: 1px solid var(--line)
+  :where(pre)
+    padding: 10px 12px
+    border-radius: 8px
+    background: var(--code-surface)
+    border: 1px solid var(--line)
+    overflow-x: auto
+    line-height: 1.45
+  :where(pre > code)
+    white-space: pre
+  :where([data-diff])
+    display: block
+    margin-inline: -12px
+    padding-inline: 12px
+  :where([data-diff=add])
+    color: var(--positive)
+    background: oklch(from var(--positive) l c h / 12%)
+  :where([data-diff=remove])
+    color: var(--negative)
+    background: oklch(from var(--negative) l c h / 12%)
+  :where(table)
+    border-collapse: collapse
+    font-size: 0.92em
+    display: block
+    overflow-x: auto
+  :where(th, td)
+    padding: 5px 10px
+    border: 1px solid var(--line)
+    text-align: left
+  :where(th)
+    background: var(--surface)
+    font-weight: 600
+  :where(blockquote)
+    margin-inline: 0
+    padding-left: 1em
+    border-left: 3px solid var(--line-strong)
+    color: var(--muted)
+  :where(a)
+    color: var(--accent)
