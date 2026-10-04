@@ -16,7 +16,7 @@ import css from './style.module.sass'
 export type InputEditorHandle = {
   /** selects a source range, for example of a diagnostic */
   reveal: (start: number, end: number) => void
-  /** cycles the caret through an entry’s nearest edge, its other edge and full selection and briefly highlights the entry */
+  /** places the caret at an entry’s nearest edge, toggles to the other edge on repeated calls and briefly highlights the entry */
   revealEntry: (start: number, end: number) => void
 }
 const flashDuration = 700

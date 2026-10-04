@@ -164,8 +164,8 @@ try {
     assert.equal(await page.$eval('button[role=radio][aria-checked=true]', node => node.textContent), 'File')
   })
 
-  await check('source-linked finding navigation cycles the real editor caret through the entry, starting with the nearest edge', async ({page}) => {
-    // Typing a marker reveals the exact caret or selection in the saved draft; undo restores text and selection for the next step.
+  await check('source-linked finding navigation toggles the real editor caret between the entry edges, starting with the nearest one', async ({page}) => {
+    // Typing a marker reveals the exact caret in the saved draft; undo restores text and caret for the next step.
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
     const marker = '§'
     const readmeStart = example.indexOf('readme_spelling:')
@@ -173,20 +173,19 @@ try {
     const exposed = {start: example.indexOf('exposed_env_file:'), end: example.indexOf('\n  inconsistent_user_naming:')}
     assert.ok(example.slice(exposed.start, exposed.end).endsWith('.env.production'))
     const caretAt = offset => example.slice(0, offset) + marker + example.slice(offset)
-    const wholeOf = ({start, end}) => example.slice(0, start) + marker + example.slice(end)
-    const startFirst = bounds => [caretAt(bounds.start), caretAt(bounds.end), wholeOf(bounds), caretAt(bounds.start)]
-    const endFirst = bounds => [caretAt(bounds.end), caretAt(bounds.start), wholeOf(bounds), caretAt(bounds.end)]
+    const startFirst = bounds => [caretAt(bounds.start), caretAt(bounds.end), caretAt(bounds.start)]
+    const endFirst = bounds => [caretAt(bounds.end), caretAt(bounds.start), caretAt(bounds.end)]
     const readmeButton = 'button[title="Reveal in editor (line 41)"]'
     const exposedButton = 'button[title="Reveal in editor (line 2)"]'
     const shortcut = async key => {
       await page.keyboard.down(modifier); await page.keyboard.press(key); await page.keyboard.up(modifier)
     }
     const cycle = async (button, steps) => {
-      for (const [step, expectation] of steps.entries()) {
+      for (const expectation of steps) {
         await click(page, button)
         await page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'editor')
         await page.waitForSelector('#input .monaco-editor .view-overlays [class*=flash]')
-        assert.equal((await page.$$('#input .selected-text')).length > 0, step === 2, 'only the third step selects the entry')
+        assert.equal((await page.$$('#input .selected-text')).length, 0, 'revealing never selects text')
         await page.keyboard.sendCharacter(marker)
         await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, expectation)
         await shortcut('KeyZ')

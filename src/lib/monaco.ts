@@ -1,4 +1,4 @@
-import type {CaretSelection, EntryBounds, EntryCaretCycle, EntryPoint} from './entryCaret.ts'
+import type {EntryBounds, EntryCaret, EntryPoint} from './entryCaret.ts'
 import type {MonacoEditorProps} from 'monacozen'
 
 import {getEntryBounds, getNearestEntryEdge, getNextEntryCaret} from './entryCaret.ts'
@@ -27,18 +27,14 @@ export const revealRange = (editor: MonacoEditor, start: number, end: number, {f
   }
 }
 
-/** current selection of the editor as character offsets; undefined if there is no selection or there are multiple carets */
-export const getCaretSelection = (editor: MonacoEditor): CaretSelection | undefined => {
+/** character offset of the editor’s caret; undefined if there are multiple carets or text is selected */
+export const getCaretOffset = (editor: MonacoEditor): number | undefined => {
   const model = editor.getModel()
   const selections = editor.getSelections()
-  if (!model || selections?.length !== 1) {
+  if (!model || selections?.length !== 1 || !selections[0].isEmpty()) {
     return
   }
-  const [selection] = selections
-  return {
-    anchor: model.getOffsetAt(selection.getSelectionStart()),
-    active: model.getOffsetAt(selection.getPosition()),
-  }
+  return model.getOffsetAt(selections[0].getPosition())
 }
 /** editors whose caret was placed by the user or by a reveal; before that, Monaco’s default caret at the document start is not a meaningful point of interest */
 const placedCarets = new WeakSet<MonacoEditor>
@@ -76,11 +72,11 @@ const getReferencePoint = (editor: MonacoEditor, model: MonacoModel): EntryPoint
 const getNearestEdge = (editor: MonacoEditor, model: MonacoModel, bounds: EntryBounds) => {
   return getNearestEntryEdge(getOffsetPoint(editor, model, bounds.start), getOffsetPoint(editor, model, bounds.end), getReferencePoint(editor, model))
 }
-/** last reveal cycle per editor, so repeated reveals of the same entry can continue it */
-const cycles = new WeakMap<MonacoEditor, EntryCaretCycle>
+/** last reveal per editor, so repeated reveals of the same entry can toggle between its edges */
+const previousCarets = new WeakMap<MonacoEditor, EntryCaret>
 
 /**
- * Places the caret inside an entry’s source range. The first reveal jumps to whichever of the entry’s edges is nearest to the current caret (the center of all carets if there are multiple, the center of the visible area if no caret has been placed yet). Repeated reveals cycle to the other edge, then select the whole entry. Returns the trimmed entry range for highlighting, or undefined if there is nothing to reveal.
+ * Places the caret at an edge of an entry’s source range. The first reveal jumps to whichever of the entry’s edges is nearest to the current caret (the center of all carets if there are multiple, the center of the visible area if no caret has been placed yet). Repeated reveals toggle between both edges. Nothing gets selected. Returns the trimmed entry range for highlighting, or undefined if there is nothing to reveal.
  */
 export const revealEntry = (editor: MonacoEditor, start: number, end: number, {focus = true} = {}) => {
   const model = editor.getModel()
@@ -91,22 +87,17 @@ export const revealEntry = (editor: MonacoEditor, start: number, end: number, {f
   if (!bounds) {
     return
   }
-  const cycle = getNextEntryCaret(bounds, {
-    current: getCaretSelection(editor),
-    previous: cycles.get(editor),
+  const caret = getNextEntryCaret(bounds, {
+    current: getCaretOffset(editor),
+    previous: previousCarets.get(editor),
     nearest: getNearestEdge(editor, model, bounds),
   })
-  cycles.set(editor, cycle)
+  previousCarets.set(editor, caret)
   placedCarets.add(editor)
-  const anchor = model.getPositionAt(cycle.selection.anchor)
-  const active = model.getPositionAt(cycle.selection.active)
-  editor.setSelection({
-    selectionStartLineNumber: anchor.lineNumber,
-    selectionStartColumn: anchor.column,
-    positionLineNumber: active.lineNumber,
-    positionColumn: active.column,
-  })
-  editor.revealPositionInCenterIfOutsideViewport(active, 0)
+  const position = model.getPositionAt(caret.offset)
+  // setPosition() also collapses multiple carets and any selection into this single caret
+  editor.setPosition(position)
+  editor.revealPositionInCenterIfOutsideViewport(position, 0)
   if (focus) {
     editor.focus()
   }

@@ -1,4 +1,4 @@
-import type {CaretSelection, EntryCaretCycle, EntryEdge} from '#src/lib/entryCaret.ts'
+import type {EntryCaret, EntryEdge} from '#src/lib/entryCaret.ts'
 
 import {describe, expect, test} from 'bun:test'
 
@@ -110,12 +110,8 @@ describe('Report', () => {
     expect(finding.hasCategory('security')).toBe(true)
   })
 })
-const collapsed = (offset: number) => ({
-  anchor: offset,
-  active: offset,
-})
 const opposite = (edge: EntryEdge): EntryEdge => (edge === 'end' ? 'start' : 'end')
-describe('entry caret cycling', () => {
+describe('entry caret toggling', () => {
   const report = parseInput(exampleYaml).report!
   const finding = report.getFinding('readme_spelling')!
   const bounds = getEntryBounds(exampleYaml, finding.source!.start, finding.source!.end)!
@@ -136,58 +132,54 @@ describe('entry caret cycling', () => {
     const trimmed = getEntryBounds(text, source.start, source.end)!
     expect(text.slice(trimmed.start, trimmed.end)).toBe('"a": {"title": "A good enough title", "category": "misc"}')
   })
-  const run = (nearest: EntryEdge, steps: number, current?: CaretSelection) => {
-    const results: Array<EntryCaretCycle> = []
-    let previous: EntryCaretCycle | undefined
-    let selection = current
+  const run = (nearest: EntryEdge, steps: number, current?: number) => {
+    const results: Array<EntryCaret> = []
+    let previous: EntryCaret | undefined
+    let caret = current
     for (let i = 0; i < steps; i++) {
-      // A stale “nearest” must not matter while a cycle continues.
+      // A stale “nearest” must not matter while the toggle continues.
       previous = getNextEntryCaret(bounds, {
-        current: selection,
+        current: caret,
         previous,
         nearest: i === 0 ? nearest : opposite(nearest),
       })
-      selection = previous.selection
+      caret = previous.offset
       results.push(previous)
     }
     return results
   }
-  const whole = () => ({
-    anchor: bounds.end,
-    active: bounds.start,
+  test('toggles end → start → end if the end is nearest', () => {
+    const results = run('end', 4, 0)
+    expect(results.map(result => result.edge)).toEqual(['end', 'start', 'end', 'start'])
+    expect(results.map(result => result.offset)).toEqual([bounds.end, bounds.start, bounds.end, bounds.start])
   })
-  test('cycles end → start → whole selection → end if the end is nearest', () => {
-    const results = run('end', 4, collapsed(0))
-    expect(results.map(result => result.step)).toEqual(['end', 'start', 'entry', 'end'])
-    expect(results.map(result => result.selection)).toEqual([collapsed(bounds.end), collapsed(bounds.start), whole(), collapsed(bounds.end)])
-  })
-  test('cycles start → end → whole selection → start if the start is nearest', () => {
-    const results = run('start', 4, collapsed(0))
-    expect(results.map(result => result.step)).toEqual(['start', 'end', 'entry', 'start'])
-    expect(results.map(result => result.selection)).toEqual([collapsed(bounds.start), collapsed(bounds.end), whole(), collapsed(bounds.start)])
+  test('toggles start → end → start if the start is nearest', () => {
+    const results = run('start', 4, 0)
+    expect(results.map(result => result.edge)).toEqual(['start', 'end', 'start', 'end'])
+    expect(results.map(result => result.offset)).toEqual([bounds.start, bounds.end, bounds.start, bounds.end])
   })
   test('defaults to starting with the end', () => {
-    expect(getNextEntryCaret(bounds).selection).toEqual(collapsed(bounds.end))
+    expect(getNextEntryCaret(bounds).offset).toBe(bounds.end)
   })
-  test('starts over from any other selection', () => {
-    const previous = getNextEntryCaret(bounds, {current: collapsed(0)})
+  test('starts over from any other caret, a selection or multiple carets', () => {
+    const previous = getNextEntryCaret(bounds, {
+      current: 0,
+      nearest: 'end',
+    })
     expect(getNextEntryCaret(bounds, {
-      current: collapsed(bounds.start + 3),
+      current: bounds.start + 3,
+      previous,
+      nearest: 'end',
+    }).offset).toBe(bounds.end)
+    // a selection or multiple carets are reported as no single caret
+    expect(getNextEntryCaret(bounds, {
+      previous,
+      nearest: 'end',
+    }).offset).toBe(bounds.end)
+    expect(getNextEntryCaret(bounds, {
       previous,
       nearest: 'start',
-    }).selection).toEqual(collapsed(bounds.start))
-    expect(getNextEntryCaret(bounds, {
-      current: {
-        anchor: bounds.start,
-        active: bounds.end,
-      },
-      previous,
-    }).selection).toEqual(collapsed(bounds.end))
-    // multiple carets are reported as no single selection
-    expect(getNextEntryCaret(bounds, {
-      previous,
-      nearest: 'start',
-    }).selection).toEqual(collapsed(bounds.start))
+    }).offset).toBe(bounds.start)
   })
   test('starts over when another entry is revealed', () => {
     const other = {
@@ -195,24 +187,24 @@ describe('entry caret cycling', () => {
       end: bounds.start - 2,
     }
     const previous = getNextEntryCaret(other, {nearest: 'end'})
-    expect(previous.selection).toEqual(collapsed(other.end))
+    expect(previous.offset).toBe(other.end)
     const next = getNextEntryCaret(bounds, {
-      current: previous.selection,
+      current: previous.offset,
       previous,
       nearest: 'start',
     })
-    expect(next.step).toBe('start')
-    expect(next.index).toBe(0)
+    expect(next.edge).toBe('start')
+    expect(next.offset).toBe(bounds.start)
   })
-  test('skips a first step that would not move the caret', () => {
+  test('uses the other edge if the nearest one would not move the caret', () => {
     expect(getNextEntryCaret(bounds, {
-      current: collapsed(bounds.end),
+      current: bounds.end,
       nearest: 'end',
-    }).selection).toEqual(collapsed(bounds.start))
+    }).offset).toBe(bounds.start)
     expect(getNextEntryCaret(bounds, {
-      current: collapsed(bounds.start),
+      current: bounds.start,
       nearest: 'start',
-    }).selection).toEqual(collapsed(bounds.end))
+    }).offset).toBe(bounds.end)
   })
   test('picks the nearest entry edge', () => {
     const start = {
