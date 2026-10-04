@@ -118,7 +118,7 @@ export default function App() {
   const activeFinding = !isStale && cursorOffset !== undefined ? result.report?.getFindingAtOffset(cursorOffset) : undefined
   const revealFinding = (finding: Finding) => {
     if (!isStale && finding.source) {
-      editor.current?.reveal(finding.source.start, finding.source.end)
+      editor.current?.revealEntry(finding.source.start, finding.source.end)
     }
   }
   const revealIssue = (issue: InputIssue) => {

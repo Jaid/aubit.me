@@ -44,3 +44,20 @@
   color: var(--muted)
   background: var(--surface)
   border-top: 1px solid var(--line)
+
+// Monaco decoration that briefly highlights an entry revealed from the visualization
+.flash
+  border-radius: 2px
+  background: transparent
+  animation: flash 700ms ease-out forwards
+  @media (prefers-reduced-motion: reduce)
+    animation: none
+    background: oklch(from var(--accent) l c h / 22%)
+
+@keyframes flash
+  0%
+    background: oklch(from var(--accent) l c h / 0%)
+  15%
+    background: oklch(from var(--accent) l c h / 35%)
+  100%
+    background: oklch(from var(--accent) l c h / 0%)

@@ -9,11 +9,17 @@ import {useEffect, useImperativeHandle, useRef} from 'react'
 import EditorBoundary from '#component/EditorBoundary'
 import {useTheme} from '#src/hooks/useTheme.ts'
 import {needsSyntaxOnlyEditor, registerSafeYamlLanguage, safeYamlLanguage} from '#src/lib/editorSafety.ts'
-import {revealRange} from '#src/lib/monaco.ts'
+import {revealEntry, revealRange} from '#src/lib/monaco.ts'
 
 import css from './style.module.sass'
 
-export type InputEditorHandle = {reveal: (start: number, end: number) => void}
+export type InputEditorHandle = {
+  /** selects a source range, for example of a diagnostic */
+  reveal: (start: number, end: number) => void
+  /** cycles the caret through an entry’s end, start and full selection and briefly highlights the entry */
+  revealEntry: (start: number, end: number) => void
+}
+const flashDuration = 700
 type Props = {
   disabled?: boolean
   issues: ReadonlyArray<InputIssue>
@@ -32,19 +38,55 @@ export default function InputEditor({value, language, disabled, issues, onChange
   const monacoRef = useRef<MonacoApi | null>(null)
   const disposables = useRef<Array<{dispose: () => void}>>([])
   const cursorCallbackRef = useRef(onCursorOffsetChange)
+  const flash = useRef<{
+    clear: () => void
+    timeout: ReturnType<typeof setTimeout>
+  }>(undefined)
+  const stopFlash = () => {
+    if (flash.current) {
+      clearTimeout(flash.current.timeout)
+      flash.current.clear()
+      flash.current = undefined
+    }
+  }
   useEffect(() => {
     cursorCallbackRef.current = onCursorOffsetChange
   }, [onCursorOffsetChange])
   useEffect(() => () => {
+    stopFlash()
     for (const disposable of disposables.current) {
       disposable.dispose()
     } editorRef.current = null
   }, [])
-  useImperativeHandle(ref, () => ({reveal: (start, end) => {
-    if (editorRef.current) {
-      revealRange(editorRef.current, start, end)
-    }
-  }}), [])
+  useImperativeHandle(ref, () => ({
+    reveal: (start, end) => {
+      if (editorRef.current) {
+        revealRange(editorRef.current, start, end)
+      }
+    },
+    revealEntry: (start, end) => {
+      const editor = editorRef.current
+      if (!editor) {
+        return
+      }
+      const range = revealEntry(editor, start, end)
+      stopFlash()
+      if (!range) {
+        return
+      }
+      const decorations = editor.createDecorationsCollection([{
+        range,
+        options: {
+          className: css.flash,
+          stickiness: 1,
+        },
+      }])
+      flash.current = {
+        clear: () => decorations.clear(),
+        timeout: setTimeout(stopFlash, flashDuration),
+      }
+    },
+  }), [])
   const applyMarkers = () => {
     const editor = editorRef.current
     const monaco = monacoRef.current
@@ -69,6 +111,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
   }
   useEffect(applyMarkers, [issues, syntaxOnly])
   const handleMount = (editor: MonacoEditor, monaco: MonacoApi) => {
+    stopFlash()
     for (const disposable of disposables.current) {
       disposable.dispose()
     }

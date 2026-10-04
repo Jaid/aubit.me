@@ -164,11 +164,31 @@ try {
     assert.equal(await page.$eval('button[role=radio][aria-checked=true]', node => node.textContent), 'File')
   })
 
-  await check('source-linked finding navigation selects the correct real editor range', async ({page}) => {
-    await click(page, 'button[title="Reveal in editor (line 41)"]')
-    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'editor')
-    assert.ok((await page.$$('#input .selected-text')).length > 0)
-    await page.waitForSelector('article[data-finding=readme_spelling][data-active]')
+  await check('source-linked finding navigation cycles the real editor caret through the entry', async ({page}) => {
+    // Typing a marker reveals the exact caret or selection in the saved draft; undo restores text and selection for the next step.
+    const entryStart = example.indexOf('readme_spelling:')
+    const lastContent = 'replacement: "## Installation"'
+    const entryEnd = example.indexOf(lastContent, entryStart) + lastContent.length
+    const marker = '§'
+    const expectations = [
+      example.slice(0, entryEnd) + marker + example.slice(entryEnd),
+      example.slice(0, entryStart) + marker + example.slice(entryStart),
+      example.slice(0, entryStart) + marker + example.slice(entryEnd),
+      example.slice(0, entryEnd) + marker + example.slice(entryEnd),
+    ]
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+    for (const [step, expectation] of expectations.entries()) {
+      await click(page, 'button[title="Reveal in editor (line 41)"]')
+      await page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'editor')
+      await page.waitForSelector('article[data-finding=readme_spelling][data-active]')
+      await page.waitForSelector('#input .monaco-editor .view-overlays [class*=flash]')
+      assert.equal((await page.$$('#input .selected-text')).length > 0, step === 2, 'only the third step selects the entry')
+      await page.keyboard.sendCharacter(marker)
+      await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, expectation)
+      await page.keyboard.down(modifier); await page.keyboard.press('KeyZ'); await page.keyboard.up(modifier)
+      await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value && document.querySelector('[data-input-status]')?.getAttribute('data-state') === 'valid', {}, example)
+    }
+    await page.waitForFunction(() => !document.querySelector('#input .monaco-editor .view-overlays [class*=flash]'))
   })
 
   await check('exact source, Markdown, Clank, and complete HTML downloads', async state => {

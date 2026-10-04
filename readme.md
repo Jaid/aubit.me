@@ -33,7 +33,7 @@ The design retains the Claude candidate's restrained, full-height interface: a M
 | Preview | The generated Markdown rendered as sanitized HTML. |
 | Clank | The original parsed input value, before schema defaults and presentation normalization. |
 
-Click a finding's ID/line button or an input diagnostic to select its original source range. Moving the editor cursor into a finding highlights its card. Filters remain in place when switching views and affect only the visualization, never complete exports. Large reports initially render 100 findings; the remaining findings can be loaded incrementally. Inline code previews show at most 200 lines while downloads retain all content.
+Click a finding in the visualization to briefly highlight its source entry and place the caret at the end of the entry's last contentful line. Clicking the same finding again cycles the caret to the start of the entry's first contentful line (right of the indentation), then selects the whole entry, then returns to the end. Click an input diagnostic to select its original source range. Moving the editor cursor into a finding highlights its card. Filters remain in place when switching views and affect only the visualization, never complete exports. Large reports initially render 100 findings; the remaining findings can be loaded incrementally. Inline code previews show at most 200 lines while downloads retain all content.
 
 The source toolbar supports Open, Example, New, YAML/JSON formatting, Undo replacement, and exact input download. The output toolbar copies or downloads the current format and can create a compressed share link. The help dialog documents the report format, privacy model, and limits.
 

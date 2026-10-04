@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 
+import {getEntryBounds, getNextEntryCaret} from '#src/lib/entryCaret.ts'
 import {getFileLanguage} from '#src/lib/fileLanguage.ts'
 import {formatCount, joinList, pluralize} from '#src/lib/format.ts'
 import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
@@ -105,6 +106,56 @@ describe('Report', () => {
     const finding = report.getFinding('exposed_env_file')!
     expect(finding.specificCategories.map(category => category.id)).toEqual(['security.leak'])
     expect(finding.hasCategory('security')).toBe(true)
+  })
+})
+const collapsed = (offset: number) => ({
+  anchor: offset,
+  active: offset,
+})
+describe('entry caret cycling', () => {
+  const report = parseInput(exampleYaml).report!
+  const finding = report.getFinding('readme_spelling')!
+  const bounds = getEntryBounds(exampleYaml, finding.source!.start, finding.source!.end)!
+  test('trims the entry to its first and last contentful lines', () => {
+    expect(exampleYaml.slice(bounds.start).startsWith('readme_spelling:')).toBe(true)
+    expect(exampleYaml.slice(0, bounds.end).endsWith('replacement: "## Installation"')).toBe(true)
+    expect(exampleYaml[bounds.end]).toBe('\n')
+  })
+  test('ignores trailing whitespace, blank lines and indentation', () => {
+    const text = '  \n    key: value  \n    other: 1   \n\n\n  next:'
+    const trimmed = getEntryBounds(text, 0, text.length - 7)!
+    expect(text.slice(trimmed.start, trimmed.end)).toBe('key: value  \n    other: 1')
+    expect(getEntryBounds(' \n\t ', 0, 4)).toBeUndefined()
+  })
+  test('works for entries that share a line, like compact JSON', () => {
+    const text = '{"entries": {"a": {"title": "A good enough title", "category": "misc"}, "b": {"title": "Another valid title", "category": "misc"}}}'
+    const source = parseInput(text).report!.getFinding('a')!.source!
+    const trimmed = getEntryBounds(text, source.start, source.end)!
+    expect(text.slice(trimmed.start, trimmed.end)).toBe('"a": {"title": "A good enough title", "category": "misc"}')
+  })
+  test('cycles end → start → whole selection → end', () => {
+    const first = getNextEntryCaret(bounds, collapsed(0))
+    expect(first).toEqual(collapsed(bounds.end))
+    const second = getNextEntryCaret(bounds, first)
+    expect(second).toEqual(collapsed(bounds.start))
+    const third = getNextEntryCaret(bounds, second)
+    expect(third).toEqual({
+      anchor: bounds.end,
+      active: bounds.start,
+    })
+    expect(getNextEntryCaret(bounds, third)).toEqual(collapsed(bounds.end))
+  })
+  test('starts over from any other selection', () => {
+    expect(getNextEntryCaret(bounds)).toEqual(collapsed(bounds.end))
+    expect(getNextEntryCaret(bounds, collapsed(bounds.start + 3))).toEqual(collapsed(bounds.end))
+    expect(getNextEntryCaret(bounds, {
+      anchor: bounds.start,
+      active: bounds.end,
+    })).toEqual(collapsed(bounds.end))
+    expect(getNextEntryCaret(bounds, {
+      anchor: bounds.end - 1,
+      active: bounds.start,
+    })).toEqual(collapsed(bounds.end))
   })
 })
 describe('Priority and Category', () => {
