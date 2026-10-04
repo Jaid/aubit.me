@@ -1,6 +1,8 @@
+import type {CaretSelection, EntryCaretCycle, EntryEdge} from '#src/lib/entryCaret.ts'
+
 import {describe, expect, test} from 'bun:test'
 
-import {getEntryBounds, getNextEntryCaret} from '#src/lib/entryCaret.ts'
+import {getEntryBounds, getNearestEntryEdge, getNextEntryCaret} from '#src/lib/entryCaret.ts'
 import {getFileLanguage} from '#src/lib/fileLanguage.ts'
 import {formatCount, joinList, pluralize} from '#src/lib/format.ts'
 import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
@@ -112,6 +114,7 @@ const collapsed = (offset: number) => ({
   anchor: offset,
   active: offset,
 })
+const opposite = (edge: EntryEdge): EntryEdge => (edge === 'end' ? 'start' : 'end')
 describe('entry caret cycling', () => {
   const report = parseInput(exampleYaml).report!
   const finding = report.getFinding('readme_spelling')!
@@ -133,29 +136,120 @@ describe('entry caret cycling', () => {
     const trimmed = getEntryBounds(text, source.start, source.end)!
     expect(text.slice(trimmed.start, trimmed.end)).toBe('"a": {"title": "A good enough title", "category": "misc"}')
   })
-  test('cycles end → start → whole selection → end', () => {
-    const first = getNextEntryCaret(bounds, collapsed(0))
-    expect(first).toEqual(collapsed(bounds.end))
-    const second = getNextEntryCaret(bounds, first)
-    expect(second).toEqual(collapsed(bounds.start))
-    const third = getNextEntryCaret(bounds, second)
-    expect(third).toEqual({
-      anchor: bounds.end,
-      active: bounds.start,
-    })
-    expect(getNextEntryCaret(bounds, third)).toEqual(collapsed(bounds.end))
+  const run = (nearest: EntryEdge, steps: number, current?: CaretSelection) => {
+    const results: Array<EntryCaretCycle> = []
+    let previous: EntryCaretCycle | undefined
+    let selection = current
+    for (let i = 0; i < steps; i++) {
+      // A stale “nearest” must not matter while a cycle continues.
+      previous = getNextEntryCaret(bounds, {
+        current: selection,
+        previous,
+        nearest: i === 0 ? nearest : opposite(nearest),
+      })
+      selection = previous.selection
+      results.push(previous)
+    }
+    return results
+  }
+  const whole = () => ({
+    anchor: bounds.end,
+    active: bounds.start,
+  })
+  test('cycles end → start → whole selection → end if the end is nearest', () => {
+    const results = run('end', 4, collapsed(0))
+    expect(results.map(result => result.step)).toEqual(['end', 'start', 'entry', 'end'])
+    expect(results.map(result => result.selection)).toEqual([collapsed(bounds.end), collapsed(bounds.start), whole(), collapsed(bounds.end)])
+  })
+  test('cycles start → end → whole selection → start if the start is nearest', () => {
+    const results = run('start', 4, collapsed(0))
+    expect(results.map(result => result.step)).toEqual(['start', 'end', 'entry', 'start'])
+    expect(results.map(result => result.selection)).toEqual([collapsed(bounds.start), collapsed(bounds.end), whole(), collapsed(bounds.start)])
+  })
+  test('defaults to starting with the end', () => {
+    expect(getNextEntryCaret(bounds).selection).toEqual(collapsed(bounds.end))
   })
   test('starts over from any other selection', () => {
-    expect(getNextEntryCaret(bounds)).toEqual(collapsed(bounds.end))
-    expect(getNextEntryCaret(bounds, collapsed(bounds.start + 3))).toEqual(collapsed(bounds.end))
+    const previous = getNextEntryCaret(bounds, {current: collapsed(0)})
     expect(getNextEntryCaret(bounds, {
-      anchor: bounds.start,
-      active: bounds.end,
-    })).toEqual(collapsed(bounds.end))
+      current: collapsed(bounds.start + 3),
+      previous,
+      nearest: 'start',
+    }).selection).toEqual(collapsed(bounds.start))
     expect(getNextEntryCaret(bounds, {
-      anchor: bounds.end - 1,
-      active: bounds.start,
-    })).toEqual(collapsed(bounds.end))
+      current: {
+        anchor: bounds.start,
+        active: bounds.end,
+      },
+      previous,
+    }).selection).toEqual(collapsed(bounds.end))
+    // multiple carets are reported as no single selection
+    expect(getNextEntryCaret(bounds, {
+      previous,
+      nearest: 'start',
+    }).selection).toEqual(collapsed(bounds.start))
+  })
+  test('starts over when another entry is revealed', () => {
+    const other = {
+      start: bounds.start - 20,
+      end: bounds.start - 2,
+    }
+    const previous = getNextEntryCaret(other, {nearest: 'end'})
+    expect(previous.selection).toEqual(collapsed(other.end))
+    const next = getNextEntryCaret(bounds, {
+      current: previous.selection,
+      previous,
+      nearest: 'start',
+    })
+    expect(next.step).toBe('start')
+    expect(next.index).toBe(0)
+  })
+  test('skips a first step that would not move the caret', () => {
+    expect(getNextEntryCaret(bounds, {
+      current: collapsed(bounds.end),
+      nearest: 'end',
+    }).selection).toEqual(collapsed(bounds.start))
+    expect(getNextEntryCaret(bounds, {
+      current: collapsed(bounds.start),
+      nearest: 'start',
+    }).selection).toEqual(collapsed(bounds.end))
+  })
+  test('picks the nearest entry edge', () => {
+    const start = {
+      y: 100,
+      offset: 50,
+    }
+    const end = {
+      y: 300,
+      offset: 400,
+    }
+    expect(getNearestEntryEdge(start, end, {y: 0})).toBe('start')
+    expect(getNearestEntryEdge(start, end, {y: 199})).toBe('start')
+    expect(getNearestEntryEdge(start, end, {y: 201})).toBe('end')
+    expect(getNearestEntryEdge(start, end, {y: 5000})).toBe('end')
+    expect(getNearestEntryEdge(start, end, {
+      y: 200,
+      offset: 60,
+    })).toBe('start')
+    expect(getNearestEntryEdge(start, end, {y: 200})).toBe('end')
+    // single-line entries are decided by character offsets
+    const lineStart = {
+      y: 100,
+      offset: 10,
+    }
+    const lineEnd = {
+      y: 100,
+      offset: 80,
+    }
+    expect(getNearestEntryEdge(lineStart, lineEnd, {
+      y: 100,
+      offset: 30,
+    })).toBe('start')
+    expect(getNearestEntryEdge(lineStart, lineEnd, {
+      y: 100,
+      offset: 70,
+    })).toBe('end')
+    expect(getNearestEntryEdge(lineStart, lineEnd, {y: 400})).toBe('end')
   })
 })
 describe('Priority and Category', () => {

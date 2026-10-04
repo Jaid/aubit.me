@@ -164,30 +164,55 @@ try {
     assert.equal(await page.$eval('button[role=radio][aria-checked=true]', node => node.textContent), 'File')
   })
 
-  await check('source-linked finding navigation cycles the real editor caret through the entry', async ({page}) => {
+  await check('source-linked finding navigation cycles the real editor caret through the entry, starting with the nearest edge', async ({page}) => {
     // Typing a marker reveals the exact caret or selection in the saved draft; undo restores text and selection for the next step.
-    const entryStart = example.indexOf('readme_spelling:')
-    const lastContent = 'replacement: "## Installation"'
-    const entryEnd = example.indexOf(lastContent, entryStart) + lastContent.length
-    const marker = '§'
-    const expectations = [
-      example.slice(0, entryEnd) + marker + example.slice(entryEnd),
-      example.slice(0, entryStart) + marker + example.slice(entryStart),
-      example.slice(0, entryStart) + marker + example.slice(entryEnd),
-      example.slice(0, entryEnd) + marker + example.slice(entryEnd),
-    ]
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-    for (const [step, expectation] of expectations.entries()) {
-      await click(page, 'button[title="Reveal in editor (line 41)"]')
-      await page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'editor')
-      await page.waitForSelector('article[data-finding=readme_spelling][data-active]')
-      await page.waitForSelector('#input .monaco-editor .view-overlays [class*=flash]')
-      assert.equal((await page.$$('#input .selected-text')).length > 0, step === 2, 'only the third step selects the entry')
-      await page.keyboard.sendCharacter(marker)
-      await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, expectation)
-      await page.keyboard.down(modifier); await page.keyboard.press('KeyZ'); await page.keyboard.up(modifier)
-      await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value && document.querySelector('[data-input-status]')?.getAttribute('data-state') === 'valid', {}, example)
+    const marker = '§'
+    const readmeStart = example.indexOf('readme_spelling:')
+    const readme = {start: readmeStart, end: example.indexOf('replacement: "## Installation"', readmeStart) + 'replacement: "## Installation"'.length}
+    const exposed = {start: example.indexOf('exposed_env_file:'), end: example.indexOf('\n  inconsistent_user_naming:')}
+    assert.ok(example.slice(exposed.start, exposed.end).endsWith('.env.production'))
+    const caretAt = offset => example.slice(0, offset) + marker + example.slice(offset)
+    const wholeOf = ({start, end}) => example.slice(0, start) + marker + example.slice(end)
+    const startFirst = bounds => [caretAt(bounds.start), caretAt(bounds.end), wholeOf(bounds), caretAt(bounds.start)]
+    const endFirst = bounds => [caretAt(bounds.end), caretAt(bounds.start), wholeOf(bounds), caretAt(bounds.end)]
+    const readmeButton = 'button[title="Reveal in editor (line 41)"]'
+    const exposedButton = 'button[title="Reveal in editor (line 2)"]'
+    const shortcut = async key => {
+      await page.keyboard.down(modifier); await page.keyboard.press(key); await page.keyboard.up(modifier)
     }
+    const cycle = async (button, steps) => {
+      for (const [step, expectation] of steps.entries()) {
+        await click(page, button)
+        await page.waitForFunction(() => document.activeElement?.getAttribute('aria-roledescription') === 'editor')
+        await page.waitForSelector('#input .monaco-editor .view-overlays [class*=flash]')
+        assert.equal((await page.$$('#input .selected-text')).length > 0, step === 2, 'only the third step selects the entry')
+        await page.keyboard.sendCharacter(marker)
+        await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, expectation)
+        await shortcut('KeyZ')
+        await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value && document.querySelector('[data-input-status]')?.getAttribute('data-state') === 'valid', {}, example)
+      }
+    }
+    // Without a placed caret, the center of the visible editor area (around line 28) decides: the start of lines 41–51, the end of lines 2–17.
+    await cycle(readmeButton, startFirst(readme))
+    await page.waitForSelector('article[data-finding=readme_spelling][data-active]')
+    await page.reload({waitUntil: 'networkidle0'})
+    await page.waitForSelector('[data-input-status][data-state=valid]')
+    await page.waitForSelector('#input .monaco-editor [role=textbox]')
+    await cycle(exposedButton, endFirst(exposed))
+    // A single caret decides on its own.
+    await shortcut('End')
+    await cycle(readmeButton, endFirst(readme))
+    await shortcut('Home')
+    await cycle(readmeButton, startFirst(readme))
+    // Multiple carets use their center: “entries” on lines 1 and 65 center at line 33, nearer to the end of lines 2–17, even though the primary caret on line 1 alone would pick the start.
+    await shortcut('Home')
+    await shortcut('KeyD')
+    await shortcut('KeyD')
+    await page.waitForFunction(() => document.querySelectorAll('#input .cursors-layer > .cursor').length === 2)
+    assert.equal(example.split('\n').findIndex((line, index) => index > 0 && /\bentries\b/.test(line)), 64)
+    await cycle(exposedButton, endFirst(exposed))
+    assert.equal(await page.$$eval('#input .cursors-layer > .cursor', nodes => nodes.length), 1)
     await page.waitForFunction(() => !document.querySelector('#input .monaco-editor .view-overlays [class*=flash]'))
   })
 

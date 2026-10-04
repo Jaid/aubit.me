@@ -9,14 +9,14 @@ import {useEffect, useImperativeHandle, useRef} from 'react'
 import EditorBoundary from '#component/EditorBoundary'
 import {useTheme} from '#src/hooks/useTheme.ts'
 import {needsSyntaxOnlyEditor, registerSafeYamlLanguage, safeYamlLanguage} from '#src/lib/editorSafety.ts'
-import {revealEntry, revealRange} from '#src/lib/monaco.ts'
+import {revealEntry, revealRange, trackCaretPlacement} from '#src/lib/monaco.ts'
 
 import css from './style.module.sass'
 
 export type InputEditorHandle = {
   /** selects a source range, for example of a diagnostic */
   reveal: (start: number, end: number) => void
-  /** cycles the caret through an entry’s end, start and full selection and briefly highlights the entry */
+  /** cycles the caret through an entry’s nearest edge, its other edge and full selection and briefly highlights the entry */
   revealEntry: (start: number, end: number) => void
 }
 const flashDuration = 700
@@ -122,7 +122,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
       if (offset !== undefined) {
         cursorCallbackRef.current?.(offset)
       }
-    })]
+    }), trackCaretPlacement(editor)]
     applyMarkers()
   }
   const handleChange = (next: string | undefined) => {
