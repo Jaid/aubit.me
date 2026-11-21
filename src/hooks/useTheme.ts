@@ -29,12 +29,14 @@ apply()
 const subscribe = (callback: () => void) => {
   const media = globalThis.matchMedia?.('(prefers-color-scheme: light)')
   const update = () => {
-    apply(); callback()
+    apply()
+    callback()
   }
   globalThis.addEventListener?.(eventName, update)
   media?.addEventListener('change', update)
   return () => {
-    globalThis.removeEventListener?.(eventName, update); media?.removeEventListener('change', update)
+    globalThis.removeEventListener?.(eventName, update)
+    media?.removeEventListener('change', update)
   }
 }
 export const useTheme = () => useSyncExternalStore(subscribe, () => (preference === 'system' ? getSystemTheme() : preference), () => 'dark')

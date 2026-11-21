@@ -119,7 +119,8 @@ async function readBounded(stream: ReadableStream<Uint8Array>, limit: number) {
   const bytes = new Uint8Array(length)
   let offset = 0
   for (const chunk of chunks) {
-    bytes.set(chunk, offset); offset += chunk.length
+    bytes.set(chunk, offset)
+    offset += chunk.length
   }
   return bytes
 }

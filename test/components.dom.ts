@@ -26,7 +26,8 @@ async function component(name: string, props: Record<string, unknown> = {}) {
   return render(createElement(imported.default, props))
 }
 afterEach(() => {
-  cleanup(); globalThis.history.replaceState(null, '', '/')
+  cleanup()
+  globalThis.history.replaceState(null, '', '/')
 })
 describe('isolated component behavior', () => {
   test('filters findings by priority, text, and reset', async () => {

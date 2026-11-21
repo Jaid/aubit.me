@@ -84,7 +84,9 @@ describe('bounded share links', () => {
     let seed = 0x12_34_56_78
     let yaml = ''
     for (let i = 0; i < 110_000; i++) {
-      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5
+      seed ^= seed << 13
+      seed ^= seed >>> 17
+      seed ^= seed << 5
       yaml += String.fromCharCode(33 + (seed >>> 0) % 90)
     }
     await expect(encodePermalinkFragment({yaml})).rejects.toThrow('too large')

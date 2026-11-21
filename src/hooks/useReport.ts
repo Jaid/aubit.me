@@ -59,11 +59,14 @@ export function useReport(text: string) {
       }
     }, 140)
     return () => {
-      disposed = true; clearTimeout(timer); clearTimeout(watchdog)
+      disposed = true
+      clearTimeout(timer)
+      clearTimeout(watchdog)
     }
   }, [text])
   useEffect(() => () => {
-    worker.current?.terminate(); worker.current = null
+    worker.current?.terminate()
+    worker.current = null
   }, [])
   const pending = result.text !== text
   return {

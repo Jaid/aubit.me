@@ -56,7 +56,8 @@ export default function InputEditor({value, language, disabled, issues, onChange
     stopFlash()
     for (const disposable of disposables.current) {
       disposable.dispose()
-    } editorRef.current = null
+    }
+    editorRef.current = null
   }, [])
   useImperativeHandle(ref, () => ({
     reveal: (start, end) => {

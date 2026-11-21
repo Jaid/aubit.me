@@ -5,6 +5,7 @@ import {codeBlock, diffBlock, inlineCode, isMultiline, trimFinalNewline} from '#
 
 import {TextNeedle} from '../needles/index.ts'
 import {Edit} from './base/Edit.ts'
+
 const joinParagraphs = (...paragraphs: Array<string | undefined>) => paragraphs.filter(Boolean).join('\n\n')
 /** operation that targets a located part of the file */
 export abstract class NeedleEdit extends Edit {

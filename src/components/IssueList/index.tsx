@@ -17,7 +17,7 @@ export default ({issues, onReveal}: Props) => {
   if (issues.length === 0) {
     return null
   }
-  const source = issues[0].source === 'yaml' ? 'YAML syntax' : issues[0]!.source === 'schema' ? 'schema' : 'input'
+  const source = issues[0].source === 'yaml' ? 'YAML syntax' : (issues[0].source === 'schema' ? 'schema' : 'input')
   const visible = isExpanded ? issues : issues.slice(0, collapsedLimit)
   const hiddenCount = issues.length - visible.length
   return <div className={css.container} data-issue-list role='alert'>

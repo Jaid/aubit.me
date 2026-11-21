@@ -42,7 +42,9 @@ export default function EditorHeader(props: Props) {
         <button className={css.action} disabled={!ready} title='Open a YAML or JSON file' type='button' onClick={() => file.current?.click()}>Open</button>
         <input
           className={css.fileInput} accept='.yaml,.yml,.json,text/plain,application/json,application/yaml' aria-label='Open report file' data-report-file type='file' ref={file} onChange={event => {
-            const selected = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (selected) {
+            const selected = event.currentTarget.files?.[0]
+            event.currentTarget.value = ''
+            if (selected) {
               props.onOpenFile(selected)
             }
           }}

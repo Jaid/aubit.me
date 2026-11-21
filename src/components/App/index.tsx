@@ -30,7 +30,8 @@ export default function App() {
   const {text, current, replace} = draft
   const {result, lastValid, pending} = useReport(text)
   const [tab, setTab] = useState<OutputTab>(() => {
-    const saved = readTab(); return isOutputTab(saved) ? saved : 'visualization'
+    const saved = readTab()
+    return isOutputTab(saved) ? saved : 'visualization'
   })
   const [cursorOffset, setCursorOffset] = useState<number>()
   const [dragging, setDragging] = useState(false)
@@ -46,7 +47,8 @@ export default function App() {
     onlySaveAfterUserInteractions: true,
   })
   const changeTab = useCallback((next: OutputTab) => {
-    setTab(next); saveTab(next)
+    setTab(next)
+    saveTab(next)
   }, [])
   useEffect(() => {
     let disposed = false
@@ -61,7 +63,8 @@ export default function App() {
         }
         if (state.yaml !== undefined) {
           if (current.current !== before) {
-            notify('The shared report was not applied because you edited this draft while it was opening.'); return
+            notify('The shared report was not applied because you edited this draft while it was opening.')
+            return
           }
           const changed = replace(state.yaml, 'Shared report opened.', !initial)
           if (changed || state.yaml === current.current) {
@@ -89,7 +92,8 @@ export default function App() {
     }
     globalThis.addEventListener('hashchange', changed)
     return () => {
-      disposed = true; globalThis.removeEventListener('hashchange', changed)
+      disposed = true
+      globalThis.removeEventListener('hashchange', changed)
     }
   }, [changeTab, current, notify, replace])
   useEffect(() => {
@@ -107,7 +111,8 @@ export default function App() {
       const key = /^Digit([1-4])$/.exec(event.code)
       const next = key ? outputTabs[Number(key[1]) - 1] : undefined
       if (next) {
-        event.preventDefault(); changeTab(next)
+        event.preventDefault()
+        changeTab(next)
       }
     }
     globalThis.addEventListener('keydown', onKey, {capture: true})
@@ -161,7 +166,8 @@ export default function App() {
       return
     }
     if (event.dataTransfer.files.length !== 1) {
-      notify('Drop exactly one YAML or JSON report at a time.'); return
+      notify('Drop exactly one YAML or JSON report at a time.')
+      return
     }
     void importFile(event.dataTransfer.files[0])
   }
@@ -174,7 +180,9 @@ export default function App() {
       }
     }} onDragOver={event => {
       if (event.dataTransfer.types.includes('Files')) {
-        event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDragging(true)
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setDragging(true)
       }
     }} onDropCapture={drop}
   >
@@ -186,7 +194,11 @@ export default function App() {
     >
       <Panel id='input' className={css.panel} defaultSize='42%' minSize={isNarrow ? '24%' : '280px'}>
         <div className={css.pane}>
-          <EditorHeader canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New report created.')} onOpenFile={file => { importFile(file).catch(error => notify(String(error))) }} onUndo={draft.restore} />
+          <EditorHeader
+            canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New report created.')} onOpenFile={file => {
+              importFile(file).catch(error => notify(String(error)))
+            }} onUndo={draft.restore}
+          />
           <div className={css.paneBody}><InputEditor disabled={!ready} issues={pending ? [] : result.issues} language={result.language} value={text} ref={editor} onChange={draft.update} onCursorOffsetChange={setCursorOffset} /></div>
           {!pending && ready && <IssueList issues={result.issues} onReveal={revealIssue} />}
           <footer className={css.inputFooter}><span data-save-state={draft.saveState}>{saveLabel}</span>{draft.saveState === 'conflict' && <button type='button' onClick={draft.resolveConflict}>Save this tab</button>}<span>{text.split('\n').length} lines · {bytes < 1000 ? `${bytes} B` : `${(bytes / 1000).toFixed(1)} kB`}</span></footer>

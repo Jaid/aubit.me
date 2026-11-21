@@ -204,7 +204,8 @@ export default ({report, activeFindingId, onReveal}: Props) => {
     <div className={css.toolbar}>
       <input
         className={css.search} aria-label='Search findings' placeholder='Search findings…' type='search' value={query} onChange={event => {
-          setQuery(event.target.value); setVisibleLimit(100)
+          setQuery(event.target.value)
+          setVisibleLimit(100)
         }}
       />
       <div

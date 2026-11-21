@@ -17,7 +17,8 @@ export default function ActionButton({onClick, onError, doneLabel, icon, childre
   const mounted = useRef(true)
   const busy = useRef(false)
   useEffect(() => {
-    mounted.current = true; return () => {
+    mounted.current = true
+    return () => {
       mounted.current = false
     }
   }, [])
@@ -35,19 +36,25 @@ export default function ActionButton({onClick, onError, doneLabel, icon, childre
     busy.current = true
     setState('busy')
     try {
-      await onClick(); if (mounted.current) {
+      await onClick()
+      if (mounted.current) {
         setState(doneLabel ? 'done' : 'idle')
       }
     } catch (error) {
       if (mounted.current) {
-        setState('failed'); onError?.(Error.isError(error) ? error.message : 'This action could not be completed.')
+        setState('failed')
+        onError?.(Error.isError(error) ? error.message : 'This action could not be completed.')
       }
     } finally {
       busy.current = false
     }
   }
-  return <button className={clsx(css.button, className)} data-state={state} disabled={disabled || state === 'busy'} type={type} onClick={() => { handleClick().catch(error => onError?.(error instanceof Error ? error.message : 'Action failed.')) }} {...props}>
+  return <button
+    className={clsx(css.button, className)} data-state={state} disabled={disabled || state === 'busy'} type={type} onClick={() => {
+      handleClick().catch(error => onError?.(Error.isError(error) ? error.message : 'Action failed.'))
+    }} {...props}
+  >
     {icon && <span className={css.icon} aria-hidden>{state === 'done' ? '✓' : icon}</span>}
-    <span className={css.label}>{state === 'done' ? doneLabel : state === 'failed' ? 'Unavailable' : children}</span>
+    <span className={css.label}>{state === 'done' ? doneLabel : (state === 'failed' ? 'Unavailable' : children)}</span>
   </button>
 }

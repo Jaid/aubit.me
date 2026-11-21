@@ -41,7 +41,7 @@ export default function OutputPane({result, current, pending, isStale, text, tab
   // Unlike stale visual context, Clank ALWAYS describes the current parsed document.
   const clank = !pending ? current.clank : null
   const canExport = tab === 'clank' ? clank !== null : Boolean(report && !isStale && !pending)
-  const copy = () => copyText(tab === 'clank' ? clank ?? '' : tab === 'preview' ? renderMarkdown(markdown) : markdown)
+  const copy = () => copyText(tab === 'clank' ? clank ?? '' : (tab === 'preview' ? renderMarkdown(markdown) : markdown))
   const download = () => {
     if (tab === 'clank') {
       downloadText(clank ?? '', 'aubit-input.clank')
@@ -51,19 +51,21 @@ export default function OutputPane({result, current, pending, isStale, text, tab
       downloadText(markdown, 'aubit-report.md', 'text/markdown')
     }
   }
-  const format = tab === 'clank' ? 'Clank' : tab === 'preview' ? 'HTML' : 'Markdown'
+  const format = tab === 'clank' ? 'Clank' : (tab === 'preview' ? 'HTML' : 'Markdown')
   return <section className={css.pane} aria-label='Report output'>
     <header className={css.header}>
       <Tabs activeKey={tab} idPrefix='output' label='Output format' tabs={definitions} onChange={onTabChange} />
       <div className={css.actions}>
         <ActionButton aria-label={`Copy ${format}`} disabled={!canExport} doneLabel='Copied' icon='⧉' title={`Copy ${format}${canExport ? '' : ' — waiting for valid current input'}`} onClick={copy} onError={notify}>Copy{tab === 'preview' ? ' HTML' : ''}</ActionButton>
-        <ActionButton aria-label={`Download ${format}`} disabled={!canExport} icon='↓' title={`Download ${format}`} onClick={download} onError={notify}>{tab === 'clank' ? '.clank' : tab === 'preview' ? '.html' : '.md'}</ActionButton>
+        <ActionButton aria-label={`Download ${format}`} disabled={!canExport} icon='↓' title={`Download ${format}`} onClick={download} onError={notify}>{tab === 'clank' ? '.clank' : (tab === 'preview' ? '.html' : '.md')}</ActionButton>
         <ActionButton
           aria-label='Share report' disabled={!text.trim()} doneLabel='Link copied' icon='↗' title='Copy a link containing the entire editor text. Anyone with the link can read it.' onClick={async () => {
             const url = await createShareUrl({
               yaml: text,
               tab,
-            }); await copyText(url); notify('Link copied. It contains the entire report; anyone with the link can read it.')
+            })
+            await copyText(url)
+            notify('Link copied. It contains the entire report; anyone with the link can read it.')
           }} onError={notify}
         >Share</ActionButton>
       </div>
