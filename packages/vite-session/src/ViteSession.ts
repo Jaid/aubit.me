@@ -12,7 +12,7 @@ type Options = {
 /** Explicit source/production modes: never transform already-built worker JavaScript. */
 export default class ViteSession implements AsyncDisposable {
   static formatAddress(address: AddressInfo) {
-    const host = ['0.0.0.0', '::'].includes(address.address) ? '127.0.0.1' : (address.address.includes(':') ? '[' + address.address + ']' : address.address)
+    const host = ['0.0.0.0', '::'].includes(address.address) ? '127.0.0.1' : (address.address.includes(':') ? `[${address.address}]` : address.address)
     return `http://${host}:${address.port}`
   }
   readonly options: Required<Options>
