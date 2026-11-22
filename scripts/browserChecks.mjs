@@ -83,10 +83,15 @@ try {
     await click(page, '#output-tab-' + name)
     await page.waitForFunction(id => document.getElementById(id)?.getAttribute('aria-selected') === 'true', {}, 'output-tab-' + name)
   }
+  function grantClipboard(context) {
+    return context.setPermission(origin,
+      {permission: {name: 'clipboard-read'}, state: 'granted'},
+      {permission: {name: 'clipboard-write', allowWithoutSanitization: false}, state: 'granted'})
+  }
   async function paste({page, context}, text, status = 'valid') {
     const editor = await page.waitForSelector('#input .monaco-editor [role=textbox]')
     assert.equal(await editor.evaluate(node => node.getAttribute('aria-roledescription')), 'editor')
-    await context.overridePermissions(origin, ['clipboard-read', 'clipboard-sanitized-write'])
+    await grantClipboard(context)
     await page.evaluate(value => navigator.clipboard.writeText(value), text)
     await editor.focus()
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -117,7 +122,7 @@ try {
     } finally { await cdp.detach() }
   }
   async function copied({page, context}, label) {
-    await context.overridePermissions(origin, ['clipboard-read', 'clipboard-sanitized-write'])
+    await grantClipboard(context)
     await click(page, 'button[aria-label="' + label + '"]')
     await page.waitForFunction(() => !document.querySelector('button[data-state=busy]'))
     // The Windows clipboard normalizes line endings. Downloads are still checked byte-for-byte.

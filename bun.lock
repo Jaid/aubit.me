@@ -57,6 +57,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "happy-dom@21.0.4": "patches/happy-dom@21.0.4.patch",
+  },
   "overrides": {
     "typescript": "npm:typescript-classic@6.0.4",
   },

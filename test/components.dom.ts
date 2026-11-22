@@ -29,6 +29,12 @@ afterEach(() => {
   cleanup()
   globalThis.history.replaceState(null, '', '/')
 })
+test('Happy DOM preserves inline SVG styles and their following siblings', () => {
+  const container = document.createElement('div')
+  container.innerHTML = '<svg><style>circle { fill: red }</style><circle /></svg>'
+  expect(container.querySelector('svg > style')?.textContent).toBe('circle { fill: red }')
+  expect(container.querySelector('svg > circle')).not.toBeNull()
+})
 describe('isolated component behavior', () => {
   test('filters findings by priority, text, and reset', async () => {
     const {container} = await component('Visualization', {report})

@@ -97,7 +97,7 @@ Sharing is opt-in. A generated link contains the **entire editor text** in a com
 
 Parsing runs in a dedicated worker and stale responses are discarded. Decompression is streamed into a bounded buffer. Extremely large reports should be split; rejected input remains editable and downloadable.
 
-Monacozen 0.5.1 guards recursive YAML aliases across its document-based language-service operations, so Aubit no longer needs a recursive-alias editor fallback or a downstream dependency patch. Anchors and aliases remain in normal schema-aware YAML mode; the application's bounded parser remains authoritative. Only oversized input falls back to the syntax-only editor as a resource guard. See `docs/monaco-yaml-guard.md` for the regression boundary.
+Monacozen guards recursive YAML aliases in its YAML language service (since 0.5.1). Anchors and aliases remain in schema-aware YAML mode; the application's bounded parser remains authoritative. Only oversized input falls back to the syntax-only editor.
 
 ## Keyboard
 

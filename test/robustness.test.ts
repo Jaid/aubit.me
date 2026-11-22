@@ -213,12 +213,13 @@ describe('complete edit support and exports', () => {
 describe('upstream editor guard', () => {
   test('released Monacozen carries the recursive-alias guard without a local patch', async () => {
     const packageJson = await Bun.file('node_modules/monacozen/package.json').json() as {version: string}
-    expect(packageJson.version).toBe('0.5.1')
+    expect(Bun.semver.satisfies(packageJson.version, '>=0.5.1')).toBe(true)
     expect(await Bun.file('patches/monacozen@0.4.0.patch').exists()).toBe(false)
     const workerGlob = new Bun.Glob('node_modules/monacozen/assets/yaml.worker-*.js')
     let guardedWorker = false
     for await (const workerFile of workerGlob.scan('.')) {
-      if ((await Bun.file(workerFile).text()).includes('recursive-alias')) {
+      const worker = await Bun.file(workerFile).text()
+      if (worker.includes('recursive-alias')) {
         guardedWorker = true
         break
       }
@@ -228,7 +229,7 @@ describe('upstream editor guard', () => {
   test('acyclic aliases keep schema-aware editor mode', () => {
     expect(needsSyntaxOnlyEditor('base: &item\n  value: 1\ncopy: *item\n')).toBe(false)
   })
-  test('recursive aliases remain in schema-aware editor mode with Monacozen 0.5.1', () => {
+  test('recursive aliases remain in schema-aware editor mode', () => {
     expect(needsSyntaxOnlyEditor('entries: &loop\n  child: *loop\n')).toBe(false)
   })
   test('oversized input still uses the resource-bounded syntax-only editor', () => {
