@@ -30,7 +30,7 @@ const Lines = ({lines, kind, highlights}: {
   const Change = kind === 'remove' ? 'del' : 'ins'
   return <>{lines.slice(0, 200).map((line, index) => <span key={index} className={css.line} data-kind={kind}>
     <span className={css.gutter} aria-hidden>{gutters[kind]}</span>
-    <span className={css.text} data-compared={highlights ? true : undefined}>{line && highlights ? highlights[index].map((part, i) => (part.changed ? <Change key={i}>{part.text}</Change> : part.text)) : line || '\u{200B}'}</span>
+    <span className={css.text}>{line && highlights ? highlights[index].map((part, i) => (part.changed ? <Change key={i}>{part.text}</Change> : part.text)) : line || '\u{200B}'}</span>
   </span>)}{lines.length > 200 && <span className={css.omitted}>Preview limited to 200 lines. {lines.length - 200} more lines are retained in the complete exports.</span>}</>
 }
 const Code = ({children}: {children: ReactNode}) => {

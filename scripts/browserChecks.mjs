@@ -326,6 +326,24 @@ try {
     assert.ok(html.text.includes('listed them on 2026-11-<ins>22</ins>'))
   })
 
+  await check('a removed setup line stays separate from a rewritten condition', async state => {
+    const setup = "  const url = new URL(input, 'http://localhost/')"
+    const oldCondition = "  if (url.searchParams.has('audio')) {"
+    const newCondition = "  if (!Object.hasOwn(readPermalink(input), 'audio')) {"
+    const edit = {action: 'edit', needle: setup + '\n' + oldCondition, replacement: newCondition}
+    await paste(state, JSON.stringify({entries: {audio: {title: 'Update audio condition', category: 'misc', suggestedChanges: [{file: 'audio.ts', edit}]}}}))
+    const rows = await state.page.$$eval('[data-finding=audio] pre [data-kind]', nodes => nodes.map(node => ({
+      text: node.lastElementChild.textContent,
+      highlights: [...node.querySelectorAll('ins,del')].map(mark => mark.textContent),
+      decoration: getComputedStyle(node.querySelector('ins,del') ?? node.lastElementChild).textDecorationLine,
+    })))
+    assert.deepEqual(rows, [
+      {text: setup, highlights: [], decoration: 'none'},
+      {text: oldCondition, highlights: ['url.searchParams.has('], decoration: 'none'},
+      {text: newCondition, highlights: ['!Object.hasOwn(readPermalink(input), '], decoration: 'none'},
+    ])
+  })
+
   await check('exact source, Markdown, Clank, and complete HTML downloads', async state => {
     const input = await downloaded(state, 'Download input')
     assert.equal(input.text, example)
