@@ -48,7 +48,7 @@ export const reportToMarkdown = (report: Report, {title = 'Aubit report'}: Repor
     parts.push('No findings.')
     return `${parts.join('\n\n')}\n`
   }
-  parts.push(renderSummary(report), 'Suggested edits are illustrative, not executable patches. Exports include all findings; view filters do not change this report.', renderOverview(report))
+  parts.push(renderSummary(report), 'Suggested edits are illustrative, not executable patches. This report includes all enabled findings, regardless of search or view filters.', renderOverview(report))
   for (const finding of report.sorted) {
     parts.push('---', renderFinding(finding, report))
   }

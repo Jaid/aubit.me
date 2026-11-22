@@ -3,14 +3,14 @@ import type {OutputTab} from '#component/OutputPane'
 import type {Finding, InputIssue} from '#src/lib/report/index.ts'
 import type {DragEvent} from 'react'
 
-import {jsonSchema} from 'aubit-schema'
+import {documentJsonSchema} from 'aubit-schema'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Group, Panel, Separator, useDefaultLayout} from 'react-resizable-panels'
 
 import EditorHeader from '#component/EditorHeader'
 import InputEditor from '#component/InputEditor'
 import IssueList from '#component/IssueList'
-import OutputPane, {isOutputTab, outputTabs} from '#component/OutputPane'
+import OutputPane, {outputTabs, readOutputTab} from '#component/OutputPane'
 import {useDraft} from '#src/hooks/useDraft.ts'
 import {useMediaQuery} from '#src/hooks/useMediaQuery.ts'
 import {useReport} from '#src/hooks/useReport.ts'
@@ -29,10 +29,7 @@ export default function App() {
   const draft = useDraft(ready, notify)
   const {text, current, replace} = draft
   const {result, lastValid, pending} = useReport(text)
-  const [tab, setTab] = useState<OutputTab>(() => {
-    const saved = readTab()
-    return isOutputTab(saved) ? saved : 'visualization'
-  })
+  const [tab, setTab] = useState<OutputTab>(() => readOutputTab(readTab()) ?? 'render')
   const [cursorOffset, setCursorOffset] = useState<number>()
   const [dragging, setDragging] = useState(false)
   const editor = useRef<InputEditorHandle>(null)
@@ -68,8 +65,9 @@ export default function App() {
           }
           const changed = replace(state.yaml, 'Shared report opened.', !initial)
           if (changed || state.yaml === current.current) {
-            if (isOutputTab(state.tab)) {
-              changeTab(state.tab)
+            const sharedTab = readOutputTab(state.tab)
+            if (sharedTab) {
+              changeTab(sharedTab)
             }
             consumePermalink()
           }
@@ -108,7 +106,7 @@ export default function App() {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.getModifierState('AltGraph') || help.current?.open) {
         return
       }
-      const key = /^Digit([1-4])$/.exec(event.code)
+      const key = /^Digit([1-9])$/.exec(event.code)
       const next = key ? outputTabs[Number(key[1]) - 1] : undefined
       if (next) {
         event.preventDefault()
@@ -120,7 +118,21 @@ export default function App() {
   }, [changeTab])
   const shown = result.report ? result : lastValid
   const isStale = pending || !result.report
-  const activeFinding = !isStale && cursorOffset !== undefined ? result.report?.getFindingAtOffset(cursorOffset) : undefined
+  const toggleVisibility = (finding: Finding) => {
+    const edit = finding.source?.visibilityEdit
+    if (edit && ready && !isStale && current.current === result.text) {
+      const next = text.slice(0, edit.start) + edit.text + text.slice(edit.end)
+      try {
+        assertInputSize(next)
+        // Monaco's change event updates the draft and preserves carets across the range edit.
+        if (!editor.current?.applyEdit(text, edit)) {
+          draft.update(next)
+        }
+      } catch (error) {
+        notify(String(error))
+      }
+    }
+  }
   const revealFinding = (finding: Finding) => {
     if (!isStale && finding.source) {
       editor.current?.revealEntry(finding.source.start, finding.source.end)
@@ -195,7 +207,7 @@ export default function App() {
       <Panel id='input' className={css.panel} defaultSize='42%' minSize={isNarrow ? '24%' : '280px'}>
         <div className={css.pane}>
           <EditorHeader
-            canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New report created.')} onOpenFile={file => {
+            canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New document created.')} onOpenFile={file => {
               importFile(file).catch(error => notify(String(error)))
             }} onUndo={draft.restore}
           />
@@ -207,26 +219,27 @@ export default function App() {
       </Panel>
       <Separator className={css.separator} aria-label='Resize input and output panes'><span /></Separator>
       <Panel id='output' className={css.panel} minSize={isNarrow ? '30%' : '320px'}>
-        <OutputPane activeFindingId={activeFinding?.id} current={result} isStale={isStale} notify={notify} pending={pending} result={shown} tab={tab} text={text} onReveal={revealFinding} onTabChange={changeTab} />
+        <OutputPane key={draft.replacementId} current={result} cursorOffset={cursorOffset} isStale={isStale} notify={notify} pending={pending} result={shown} tab={tab} text={text} onReveal={revealFinding} onTabChange={changeTab} onToggleVisibility={toggleVisibility} />
       </Panel>
     </Group>
     <div className={css.notice} aria-live='polite' hidden={!notice} role='status'><span>{notice}</span><button aria-label='Dismiss notification' type='button' onClick={() => setNotice('')}>×</button></div>
     <dialog className={css.help} aria-labelledby='help-title' ref={help}>
       <header><h2 id='help-title'>Aubit, at a glance</h2><button aria-label='Close help' autoFocus type='button' onClick={() => help.current?.close()}>×</button></header>
       <p>A local-first workspace for reviewing code-audit reports. The editor, validation, preview, and exports run in your browser. Suggested file changes and regular expressions are never applied or executed.</p>
-      <h3>Report format</h3>
-      <pre><code>{'entries:\n  meaningful_id:\n    title: A clear description of the issue\n    priority: 2\n    category: correctness\n    description: Optional context and rationale.\n    suggestedChanges:\n      - file: src/example.ts\n        edit:\n          action: append\n          content: "// Suggested code\\n"'}</code></pre>
+      <h3>Document format</h3>
+      <pre><code>{'entries:\n  meaningful_id:\n    title: A clear description of the issue\n    category: correctness\n    state: open\n    visible: true\ncollection:\n  second_review:\n    entries: {}'}</code></pre>
+      <p>Only <code>entries</code> is required. Add <code>collection</code> to include other named reports. Entries can have an optional state (open, resolved or rejected), visibility and review comment.</p>
       <p>Priorities run from P0 (critical) to P4 (trivial); omitted priority defaults to P3. Categories and edits accept either one value or a nonempty array. JSON works too. Use Ctrl+Space for schema-aware completion.</p>
       <h3>What each export means</h3>
-      <p><strong>Input</strong> is your exact source text, including comments and spacing. <strong>Clank</strong> is the original parsed value, before defaults or normalization. <strong>Markdown and HTML</strong> include all findings, regardless of visual filters. Suggested edits include exact change data alongside illustrative diffs. Report prose is treated as literal data, not executable HTML.</p>
+      <p>Render, Markdown and HTML show the selected report. Clank includes all reports. Prompt places review instructions before that same Clank output so you can copy both together. Turning off an entry in <strong>Edit</strong> sets <code>visible: false</code> and omits it from these outputs. Input downloads and shared links keep hidden entries. Search and grouping do not affect exports.</p>
       <p>Invalid input can leave the last valid visualization visible for context, but its exports and source navigation are disabled. Clank never substitutes stale data. Formatting reserializes parsed data, so comments are not retained.</p>
       <h3>Drafts, recovery, and sharing</h3>
       <p>Draft and theme preferences are stored locally and are not encrypted. Open, New, Example, and Format keep a recovery copy; use Undo replacement to restore it. Download important or sensitive work rather than relying on browser storage. Clearing site data removes stored drafts. If another tab writes a different draft, autosave pauses here until you explicitly choose Save this tab.</p>
       <p><strong>Sharing is explicit:</strong> a compressed link contains the complete editor text. Anyone with that link can read it. Generated links use the fragment, not a server-bound query. Incoming links are removed from the address bar after opening.</p>
       <h3>Limits and keyboard controls</h3>
       <p>Reports: 2 MB, 5,000 findings, 64 nesting levels, and bounded YAML alias expansion. Links: 64,000 characters. Large documents may need to be split. Parsing runs in a worker with a six-second safety budget.</p>
-      <p>Drag the divider, or focus it and use arrow keys. The panes stack on narrow screens. Tab through controls; left/right arrows move between output tabs. Alt+1 through Alt+4 switch views (AltGr is ignored). Escape closes this dialog. Clipboard actions require HTTPS or localhost.</p>
-      <button className={css.schemaButton} type='button' onClick={() => downloadText(`${JSON.stringify(jsonSchema, null, 2)}\n`, 'aubit.schema.json', 'application/json')}>Download JSON Schema</button>
+      <p>Drag the divider, or focus it and use arrow keys. The panes stack on narrow screens. Tab through controls; left/right arrows move between output tabs. Alt+1 through Alt+6 switch views (AltGr is ignored). Escape closes this dialog. Clipboard actions require HTTPS or localhost.</p>
+      <button className={css.schemaButton} type='button' onClick={() => downloadText(`${JSON.stringify(documentJsonSchema, null, 2)}\n`, 'aubit.schema.json', 'application/json')}>Download JSON Schema</button>
     </dialog>
   </main>
 }

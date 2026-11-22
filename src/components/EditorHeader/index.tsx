@@ -32,12 +32,12 @@ export default function EditorHeader(props: Props) {
         <span className={css.status} data-input-status data-state={status}>{status}</span>
       </div>
       <div className={css.actions}>
-        <button className={css.action} aria-label='Report format and help' title='Report format, limits, and privacy' type='button' onClick={props.onHelp}>?</button>
+        <button className={css.action} aria-label='Document format and help' title='Document format, limits and privacy' type='button' onClick={props.onHelp}>?</button>
         <ThemeToggle />
       </div>
     </header>
     <div className={css.toolbar}>
-      <span className={css.filename}>report.{props.language}</span>
+      <span className={css.filename}>document.{props.language}</span>
       <div className={css.actions}>
         <button className={css.action} disabled={!ready} title='Open a YAML or JSON file' type='button' onClick={() => file.current?.click()}>Open</button>
         <input

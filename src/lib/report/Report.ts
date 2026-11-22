@@ -1,6 +1,6 @@
 import type {AubitData, CategoryId} from '#src/lib/aubitSchema.ts'
 import type {Edit} from './edits/index.ts'
-import type {SourceLocation} from './Finding.ts'
+import type {EntrySource} from './Finding.ts'
 
 import {Category} from './Category.ts'
 import {createEdit} from './edits/index.ts'
@@ -14,7 +14,7 @@ export type FileTouch = {
   finding: Finding
 }
 /** returns the source location of a finding by its ID */
-export type FindingLocator = (id: string) => SourceLocation | undefined
+export type FindingLocator = (id: string) => EntrySource | undefined
 const toArray = <Value>(value: ReadonlyArray<Value> | Value): Array<Value> => (Array.isArray(value) ? [...value as ReadonlyArray<Value>] : [value as Value])
 /** validated Aubit report with derived statistics */
 export class Report {
@@ -29,6 +29,7 @@ export class Report {
         id,
         index,
         title: item.title,
+        visible: item.visible !== false,
         description: item.description,
         priority: Priority.get(item.priority),
         categories: categoryIds.map(categoryId => Category.get(categoryId)),

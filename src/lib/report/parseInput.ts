@@ -1,7 +1,7 @@
-import type {AubitData} from '#src/lib/aubitSchema.ts'
-import type {SourceLocation} from './Finding.ts'
+import type {AubitData, DocumentData} from '#src/lib/aubitSchema.ts'
+import type {EntrySource, SourceLocation} from './Finding.ts'
 
-import schema from 'aubit-schema'
+import {documentSchema} from 'aubit-schema'
 import stringifyClank from 'stringify-clank'
 import {isScalar, LineCounter, parseDocument, stringify, visit} from 'yaml'
 
@@ -21,15 +21,18 @@ export type InputIssue = {
 /** Transferable worker result. No class instances or executable data cross the boundary. */
 export type ParseSnapshot = {
   clank: string | null
-  data?: AubitData
+  data?: DocumentData
   issues: ReadonlyArray<InputIssue>
   isYamlValid: boolean
   language: 'json' | 'yaml'
-  locations: Record<string, SourceLocation | undefined>
+  locations: Map<string, Map<string, EntrySource | undefined>>
   raw: unknown
   text: string
 }
-export type ParseResult = Omit<ParseSnapshot, 'data' | 'locations'> & {report?: Report}
+export type ParseResult = Omit<ParseSnapshot, 'data' | 'locations'> & {
+  collection: ReadonlyMap<string, Report>
+  report?: Report
+}
 
 export function inputFailure(text: string, message: string): ParseSnapshot {
   return {
@@ -38,7 +41,7 @@ export function inputFailure(text: string, message: string): ParseSnapshot {
     isYamlValid: false,
     raw: undefined,
     clank: null,
-    locations: {},
+    locations: new Map,
     issues: [{
       source: 'input',
       message,
@@ -48,6 +51,34 @@ export function inputFailure(text: string, message: string): ParseSnapshot {
 }
 
 const formatPath = (path: ReadonlyArray<number | string>) => path.map(segment => (typeof segment === 'number' ? `[${segment}]` : `.${segment}`)).join('').replace(/^\./, '')
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const findingCount = (value: unknown) => (isRecord(value) && isRecord(value.entries) ? Object.keys(value.entries).length : 0)
+
+const withVisibleEntries = (report: Record<string, unknown>) => {
+  if (!isRecord(report.entries)) {
+    return report
+  }
+  const entries = Object.entries(report.entries).flatMap<[string, unknown]>(([id, entry]) => {
+    if (!isRecord(entry) || !Object.hasOwn(entry, 'visible')) {
+      return [[id, entry]]
+    }
+    const {visible, ...fields} = entry
+    return visible === false ? [] : [[id, fields]]
+  })
+  return {...report, entries: Object.fromEntries(entries)}
+}
+
+/** Project only report entries, keeping raw values available even when schema validation fails. */
+const clankData = (raw: unknown) => {
+  if (!isRecord(raw)) {
+    return raw
+  }
+  const root = withVisibleEntries(raw)
+  if (!isRecord(raw.collection)) {
+    return root
+  }
+  return {...root, collection: Object.fromEntries(Object.entries(raw.collection).map(([id, report]) => [id, isRecord(report) ? withVisibleEntries(report) : report]))}
+}
 
 /** Never throws for user input. Raw data is captured BEFORE Zod defaults or domain normalization. */
 export function parseSnapshot(text: string): ParseSnapshot {
@@ -57,13 +88,13 @@ export function parseSnapshot(text: string): ParseSnapshot {
     isYamlValid: false,
     raw: undefined,
     clank: null,
-    locations: {},
+    locations: new Map,
     issues: [],
   }
   try {
     assertInputSize(text)
     if (!text.trim()) {
-      return inputFailure(text, 'Enter an Aubit report with an entries mapping, or choose New or Example.')
+      return inputFailure(text, 'Enter an Aubit document with an entries mapping, or choose New or Example.')
     }
     try {
       JSON.parse(text)
@@ -105,21 +136,22 @@ export function parseSnapshot(text: string): ParseSnapshot {
     const raw: unknown = document.toJS({maxAliasCount: 100})
     assertSafeData(raw)
     // Arrayable values and missing defaults stay exactly as parsed for Clank and formatting.
-    const clank = stringifyClank(raw as Parameters<typeof stringifyClank>[0])
+    const clank = stringifyClank(clankData(raw) as Parameters<typeof stringifyClank>[0])
     Object.assign(result, {
       raw,
       clank,
       isYamlValid: true,
     })
-    if (raw && typeof raw === 'object' && 'entries' in raw && raw.entries && typeof raw.entries === 'object' && Object.keys(raw.entries).length > maxFindings) {
+    const collected = isRecord(raw) && isRecord(raw.collection) ? Object.values(raw.collection) : []
+    if (collected.reduce<number>((sum, report) => sum + findingCount(report), findingCount(raw)) > maxFindings) {
       result.issues = [{
         source: 'input',
-        message: 'Reports are limited to 5,000 findings. Split this report into smaller reports.',
+        message: 'Documents are limited to 5,000 findings across all reports. Split this document into smaller documents.',
         path: ['entries'],
       }]
       return result
     }
-    const validation = schema.safeParse(raw)
+    const validation = documentSchema.safeParse(raw)
     const sourceMap = new SourceMap(document, lineCounter)
     if (!validation.success) {
       result.issues = validation.error.issues.slice(0, 100).map(issue => {
@@ -135,8 +167,14 @@ export function parseSnapshot(text: string): ParseSnapshot {
       return result
     }
     result.data = validation.data
-    for (const id of Object.keys(validation.data.entries)) {
-      result.locations[id] = sourceMap.locate(['entries', id])
+    const newline = text.includes('\r\n') ? '\r\n' : '\n'
+    const indexReport = (key: string, report: AubitData) => {
+      const prefix = key ? ['collection', key, 'entries'] : ['entries']
+      result.locations.set(key, new Map(Object.keys(report.entries).map(id => [id, sourceMap.entry([...prefix, id], text, result.language === 'json', newline)])))
+    }
+    indexReport('', validation.data)
+    for (const [key, report] of Object.entries(validation.data.collection ?? {})) {
+      indexReport(key, report)
     }
     return result
   } catch (error) {
@@ -146,9 +184,11 @@ export function parseSnapshot(text: string): ParseSnapshot {
 
 export function materializeSnapshot(snapshot: ParseSnapshot): ParseResult {
   const {data, locations, ...result} = snapshot
+  const build = (key: string, report: AubitData) => Report.fromData(report, id => locations.get(key)?.get(id))
   return {
     ...result,
-    report: data ? Report.fromData(data, id => locations[id]) : undefined,
+    report: data ? build('', data) : undefined,
+    collection: new Map(Object.entries(data?.collection ?? {}).map(([key, report]) => [key, build(key, report)])),
   }
 }
 

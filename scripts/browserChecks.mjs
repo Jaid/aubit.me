@@ -140,23 +140,113 @@ try {
   }
   const simple = JSON.stringify({entries: {simple: {title: 'A newly imported finding', category: 'hygiene'}}})
 
-  await check('real Monaco, correct summary numbers, and four output views', async ({page}) => {
+  await check('real Monaco, correct summary numbers, and six output views', async ({page}) => {
     assert.equal(await page.title(), 'Aubit Viewer')
     assert.equal((await page.$$('#output article[data-finding]')).length, 5)
-    assert.equal((await page.$$('[role=tab]')).length, 4)
+    assert.deepEqual(await page.$$eval('[role=tab]', tabs => tabs.map(tab => tab.textContent)), ['Render', 'Edit', 'Markdown', 'Preview', 'Clank', 'Prompt'])
     const text = await page.$eval('#output', node => node.textContent)
     for (const value of ['5', '8 edits', '7 files', 'P0', 'P4']) assert.ok(text.includes(value), value)
     assert.equal((await page.$$('#input .monaco-editor')).length, 1)
-    for (const mode of ['markdown', 'preview', 'clank', 'visualization']) await tab(page, mode)
+    for (const mode of ['edit', 'markdown', 'preview', 'clank', 'prompt', 'render']) await tab(page, mode)
     await fs.writeFile(join(output, 'render.html'), await page.content())
   })
 
-  await check('filtering and grouping remain local to visualization and survive tab changes', async ({page, context}) => {
+  await check('Edit switches control rendered findings and exports across groupings', async state => {
+    const {page} = state
+    const control = '[role=switch][aria-label="Include readme_spelling in report"]'
+    await tab(page, 'edit')
+    await (await page.waitForSelector(control)).focus()
+    await page.keyboard.press('Space')
+    await page.waitForSelector(control + '[aria-checked=false]')
+    assert.equal(await page.$eval(control, node => node.getAttribute('aria-checked')), 'false')
+    assert.equal(await page.$eval(control, node => node === document.activeElement), true)
+    await tab(page, 'render')
+    assert.equal(await page.$('article[data-finding=readme_spelling]'), null)
+    assert.equal((await page.$$('article[data-finding]')).length, 4)
+    assert.ok(!(await copied(state, 'Copy Markdown')).includes('`readme_spelling`'))
+    await tab(page, 'preview')
+    assert.equal((await page.$$('[data-markdown-preview] h2')).length, 4)
+    await tab(page, 'clank')
+    const clank = await copied(state, 'Copy Clank')
+    assert.ok(!clank.includes('readme_spelling'))
+    assert.ok(clank.includes('exposed_env_file'))
+    assert.equal((await downloaded(state, 'Download Clank')).text, clank)
+    await tab(page, 'prompt')
+    const prompt = await copied(state, 'Copy Prompt')
+    assert.ok(prompt.startsWith('An audit agent gave me a report.'))
+    assert.ok(prompt.endsWith('\n\nFor each issue you decide we should act on, you can already implement and commit the changes\n\n' + clank))
+    assert.deepEqual(await downloaded(state, 'Download Prompt'), {name: 'aubit-prompt.txt', text: prompt})
+    await tab(page, 'edit')
+    await click(page, 'button[role=radio]:last-child', 'File')
+    assert.equal(await page.$eval(control, node => node.getAttribute('aria-checked')), 'false')
+    await click(page, control)
+    await page.waitForSelector(control + '[aria-checked=true]')
+    assert.equal(await copied(state, 'Copy Markdown'), expectedMarkdown)
+    assert.equal((await downloaded(state, 'Download input')).text, example.replace('readme_spelling:\n', 'readme_spelling:\n    visible: true\n'))
+    await tab(page, 'clank')
+    assert.equal(await copied(state, 'Copy Clank'), expected.clank)
+  })
+
+  await check('toggling a finding keeps the editor caret and both panes in place', async ({page}) => {
+    await tab(page, 'edit')
+    const editor = await page.waitForSelector('#input .monaco-editor [role=textbox]')
+    await editor.focus()
+    const shortcut = async key => {
+      const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+      await page.keyboard.down(modifier); await page.keyboard.press(key); await page.keyboard.up(modifier)
+    }
+    await shortcut('Home')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('End')
+    await page.waitForSelector('article[data-finding=item_0][data-active]')
+    const control = '[role=switch][aria-label="Include item_20 in report"]'
+    await page.$eval(control, node => node.scrollIntoView({block: 'center', behavior: 'instant'}))
+    const position = () => page.evaluate(() => ({
+      output: document.querySelector('#output-panel > div').scrollTop,
+      firstSourceLine: document.querySelector('#input .view-line').textContent,
+    }))
+    const before = await position()
+    assert.ok(before.output > 0)
+    await click(page, control)
+    await page.waitForSelector(control + '[aria-checked=false]')
+    await page.waitForFunction(() => localStorage.getItem('aubit.me:input').includes('visible: false'))
+    assert.deepEqual(await position(), before)
+    assert.equal(await page.$eval(control, node => document.activeElement === node), true)
+    assert.equal(await page.$eval('article[data-active]', node => node.dataset.finding), 'item_0')
+    await editor.focus()
+    await shortcut('KeyZ')
+    await page.waitForSelector(control + '[aria-checked=true]')
+  }, {before: page => page.evaluateOnNewDocument(text => localStorage.setItem('aubit.me:input', text),
+    'entries:\n' + Array.from({length: 50}, (_, index) => `  item_${index}:\n    title: Finding number ${index}\n    category: misc`).join('\n'))})
+
+  await check('collection selection scopes edits and exports to the selected report', async state => {
+    const {page} = state
+    const root = {entries: {same: {title: 'Document finding', category: 'hygiene'}}}
+    const nested = {entries: {same: {title: 'Collected finding', category: 'correctness', visible: false, comment: 'Follow up'}}}
+    const doc = {...root, collection: {audit: nested}}
+    await paste(state, JSON.stringify(doc))
+    await page.select('#output select', 'audit')
+    assert.ok((await copied(state, 'Copy Markdown')).includes('No findings.'))
+    await tab(page, 'edit')
+    const control = '[role=switch][aria-label="Include same in report"]'
+    await click(page, control)
+    await page.waitForSelector(control + '[aria-checked=true]')
+    const md = await copied(state, 'Copy Markdown')
+    assert.ok(md.includes('Collected finding') && !md.includes('Document finding'))
+    const source = (await downloaded(state, 'Download input')).text
+    assert.equal(source, JSON.stringify(doc).replace('"visible":false', '"visible":true'))
+    await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, source)
+    await page.reload({waitUntil: 'networkidle0'})
+    await page.select('#output select', 'audit')
+    await page.waitForSelector(control + '[aria-checked=true]')
+  })
+
+  await check('filtering and grouping remain local to Render and Edit and survive tab changes', async ({page, context}) => {
     await page.type('input[aria-label="Search findings"]', 'credentials')
     await page.waitForFunction(() => document.querySelectorAll('#output article[data-finding]').length === 1)
     await tab(page, 'preview')
     assert.equal((await page.$$('#output [data-markdown-preview] h2')).length, 5)
-    await tab(page, 'visualization')
+    await tab(page, 'render')
     assert.equal(await page.$eval('input[aria-label="Search findings"]', node => node.value), 'credentials')
     assert.equal((await page.$$('#output article[data-finding]')).length, 1)
     assert.equal(await copied({page, context}, 'Copy Markdown'), expectedMarkdown)
@@ -311,7 +401,7 @@ try {
   })
 
   await check('hostile prose and edit strings never create executable HTML or external assets', async state => {
-    const raw = JSON.stringify({entries: {hostile: {title: '<img src=x onerror=alert(1)>', category: 'security', description: '<svg onload="window.__executed=1"></svg>\n<script>window.__executed=1</script>\n[bad](javascript:alert(1))\n![tracker](https://invalid.example/track.png)', suggestedChanges: [{file: '<img onerror=x>.tsx', edit: {action: 'overwrite', content: '</code><script>window.__executed=1</script>\n```\n'}}]}}})
+    const raw = JSON.stringify({collection: {}, entries: {hostile: {title: '<img src=x onerror=alert(1)>', category: 'security', description: '<svg onload="window.__executed=1"></svg>\n<script>window.__executed=1</script>\n[bad](javascript:alert(1))\n![tracker](https://invalid.example/track.png)', suggestedChanges: [{file: '<img onerror=x>.tsx', edit: {action: 'overwrite', content: '</code><script>window.__executed=1</script>\n```\n'}}]}}})
     await paste(state, raw)
     await tab(state.page, 'preview')
     const safety = await state.page.$eval('[data-markdown-preview]', node => ({bad: node.querySelectorAll('script,img,svg,iframe,[onerror],[onload],a[href^="javascript:"]').length, text: node.textContent}))
@@ -377,7 +467,7 @@ try {
     for (const [width, height] of [[360, 800], [432, 600], [720, 800]]) {
       await page.setViewport({width, height})
       await page.waitForSelector('[role=separator][aria-orientation=horizontal]')
-      for (const mode of ['visualization', 'markdown', 'preview', 'clank']) {
+      for (const mode of ['render', 'edit', 'markdown', 'preview', 'clank', 'prompt']) {
         await tab(page, mode)
         const metrics = await page.evaluate(() => ({width: innerWidth, scroll: document.documentElement.scrollWidth, tabs: [...document.querySelectorAll('[role=tab]')].map(node => { const r = node.getBoundingClientRect(); return {left: r.left, right: r.right, top: r.top, bottom: r.bottom} })}))
         assert.equal(metrics.scroll, width)
@@ -395,7 +485,7 @@ try {
     assert.ok(await page.$eval('#input', node => node.getBoundingClientRect().height) > before + 25)
     await page.setViewport({width: 1440, height: 1000})
     await page.waitForSelector('[role=separator][aria-orientation=vertical]')
-    await tab(page, 'visualization')
+    await tab(page, 'render')
     assert.equal((await page.$$('article[data-finding]')).length, 5)
   })
 
@@ -406,10 +496,10 @@ try {
     assert.equal(await page.$eval('html', node => node.hasAttribute('data-light')), true)
     await click(page, 'button[aria-label="Theme: light"]')
     assert.equal(await page.$eval('html', node => node.dataset.themePreference), 'system')
-    await click(page, '#output-tab-visualization')
+    await click(page, '#output-tab-render')
     await page.keyboard.press('ArrowRight')
-    assert.equal(await page.$eval('#output-tab-markdown', node => node.getAttribute('aria-selected')), 'true')
-    await click(page, 'button[aria-label="Report format and help"]')
+    assert.equal(await page.$eval('#output-tab-edit', node => node.getAttribute('aria-selected')), 'true')
+    await click(page, 'button[aria-label="Document format and help"]')
     assert.equal(await page.$eval('dialog', node => node.open), true)
     await page.keyboard.press('Escape')
     assert.equal(await page.$eval('dialog', node => node.open), false)
@@ -436,7 +526,7 @@ try {
 
   await check('large reports render progressively without changing export completeness', async state => {
     const entries = Object.fromEntries(Array.from({length: 205}, (_, index) => ['finding_' + index, {title: 'Finding number ' + index, category: 'misc'}]))
-    await paste(state, JSON.stringify({entries}))
+    await paste(state, JSON.stringify({entries, collection: {}}))
     assert.equal((await state.page.$$('article[data-finding]')).length, 100)
     const all = await copied(state, 'Copy Markdown')
     assert.ok(all.includes('finding_204'))
@@ -450,7 +540,7 @@ try {
       for (const scheme of ['dark', 'light']) {
         await page.setViewport({width, height})
         await page.emulateMediaFeatures([{name: 'prefers-color-scheme', value: scheme}])
-        await tab(page, 'visualization')
+        await tab(page, 'render')
         await page.evaluate(() => document.fonts.ready)
         await new Promise(resolve => setTimeout(resolve, 200))
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width)

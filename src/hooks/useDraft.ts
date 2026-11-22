@@ -5,6 +5,7 @@ import {assertInputSize} from '#src/lib/limits.ts'
 
 export function useDraft(ready: boolean, notify: (message: string) => void) {
   const [text, setText] = useState(readDraft)
+  const [replacementId, setReplacementId] = useState(0)
   const [backup, setBackup] = useState(() => readStorage(backupKey))
   const [saveState, setSaveState] = useState('saving')
   const current = useRef(text)
@@ -31,6 +32,7 @@ export function useDraft(ready: boolean, notify: (message: string) => void) {
     }
     checkpoint(previous)
     update(next)
+    setReplacementId(id => id + 1)
     notify(`${label} Undo replacement keeps your previous draft available.`)
     return true
   }, [checkpoint, notify, update])
@@ -40,6 +42,7 @@ export function useDraft(ready: boolean, notify: (message: string) => void) {
     }
     const previous = current.current
     update(backup)
+    setReplacementId(id => id + 1)
     checkpoint(previous)
     notify('Previous draft restored.')
   }, [backup, checkpoint, notify, update])
@@ -115,6 +118,7 @@ export function useDraft(ready: boolean, notify: (message: string) => void) {
     current,
     update,
     replace,
+    replacementId,
     restore,
     resolveConflict,
     hasBackup: backup !== undefined,

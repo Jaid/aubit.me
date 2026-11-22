@@ -24,14 +24,16 @@ The repository is a private **application package**, not an npm library. CI crea
 
 ## Workspace
 
-The design retains the Claude candidate's restrained, full-height interface: a Monacozen editor on the left, a resizable divider, and four views on the right. Panes stack on narrow screens.
+The workspace has a Monacozen editor on the left, a resizable divider and six views on the right. Panes stack on narrow screens.
 
 | View | Purpose |
 | --- | --- |
-| Visualization | Priority distribution, category filters, full-text search, priority/category/file grouping, and rich suggested-edit previews. |
-| Markdown | Complete generated Markdown in a read-only editor. |
+| Render | Explore enabled findings by priority, category or file, search the report and preview suggested edits. |
+| Edit | The same dashboard with a switch that writes `visible` into the entry. Turn a finding off to omit it from Render, Markdown, HTML and Clank, or turn it back on to include it again. Visibility travels with the document. |
+| Markdown | Generated Markdown for all enabled findings in a read-only editor. |
 | Preview | The generated Markdown rendered as sanitized HTML. |
-| Clank | The original parsed input value, before schema defaults and presentation normalization. |
+| Clank | All reports with hidden entries omitted, before schema defaults and presentation normalization. |
+| Prompt | Review instructions followed by the current Clank output, ready to copy or download as `aubit-prompt.txt`. |
 
 Click a finding in the visualization to briefly highlight its source entry and place the caret at whichever edge of the entry is nearest: the end of the entry's last contentful line or the start of its first contentful line (right of the indentation). Nearness is measured from the current caret, from the center of all carets if there are several, or from the center of the visible editor area if no caret has been placed yet. Clicking the same finding again toggles the caret between both edges; nothing gets selected. Moving the caret, editing or revealing another finding starts over at the nearest edge. Click an input diagnostic to select its original source range. Moving the editor cursor into a finding highlights its card. Filters remain in place when switching views and affect only the visualization, never complete exports. Large reports initially render 100 findings; the remaining findings can be loaded incrementally. Inline code previews show at most 200 lines while downloads retain all content.
 
@@ -53,7 +55,9 @@ entries:
           content: "// Suggested code\n"
 ```
 
-`src/lib/schema/aubit.schema.ts` is the source of truth. The app also exposes a JSON Schema download from Help. The original fixture's validation semantics are preserved.
+The editor takes an Aubit **document**. Only `entries` is required, so a standalone report can be opened directly. To collect multiple reports, map report IDs under the optional `collection` field to objects with their own `entries`. Use the report selector to choose which entries to render, edit or export as Markdown/HTML. Input downloads and share links contain the entire document, including hidden entries.
+
+Review fields on an entry are optional: `state` (`open`, `resolved` or `rejected`), `visible` and `comment`. Only `visible: false` hides a finding. Shared YAML anchors and aliases can be edited directly in the source. Validation, editor completion and the JSON Schema download in Help use the document schema from `aubit-schema`.
 
 Priorities range from P0 (critical) through P4 (trivial); omitted priority defaults to P3. `category`, `edit`, and regex `flags` accept one value or a nonempty array. The domain model normalizes these for display without altering the raw Clank representation. All twelve edit actions and text, pattern, and line needles are represented. Suggested changes and regexes are never applied to files or executed against content.
 
@@ -64,15 +68,15 @@ Mapping keys must be strings. Quote numeric finding IDs. Duplicate keys, unknown
 | Export | Guarantee |
 | --- | --- |
 | Input YAML/JSON | Exact current source text, including comments and whitespace. |
-| Clank | Original safely parsed data. Omitted defaults remain omitted and scalar arrayable values stay scalar. |
-| Markdown | All findings and human-readable edits, plus fenced change-data YAML preserving exact paths and edit contents. Schema defaults are part of this interpreted report. |
+| Clank | Omits hidden entries and strips the `visible` field from included entries in every report. Omitted defaults remain omitted and scalar arrayable values stay scalar. |
+| Markdown | All enabled findings and their human-readable edits, plus fenced change-data YAML preserving exact paths and edit contents. Schema defaults are part of this interpreted report. |
 | HTML | Self-contained sanitized rendering of the complete Markdown report with trusted inline CSS and no remote assets. |
 
 Formatting is a deliberate reserialization of the **raw** value. It does not insert Zod defaults, but it removes source comments and spelling choices such as anchor syntax. Undo replacement retains the pre-format draft. Text copied through an operating-system clipboard may have platform-normalized newlines; use file downloads for exact bytes.
 
 Report titles and descriptions are treated as literal data. They cannot insert arbitrary HTML or Markdown structure. Raw HTML is escaped, image URLs are not loaded, and the Markdown renderer applies DOMPurify with an explicit allowlist. Downloads include a restrictive content security policy.
 
-While the current input is invalid or being parsed, the last valid visualization may remain as context. Its banner is explicit, and its report-export controls and source navigation are disabled. Clank never silently substitutes an older document.
+A spinner beside Copy indicates that the current input is being parsed. If validation fails, a banner identifies the last valid report when it is shown. Report exports and source navigation pause until validation succeeds. Clank never silently substitutes an older document.
 
 ## Draft recovery and privacy
 
@@ -101,7 +105,7 @@ Monacozen guards recursive YAML aliases in its YAML language service (since 0.5.
 
 ## Keyboard
 
-Focus the divider and use arrow keys to resize. The output tab strip supports Left, Right, Home, and End. Priority/category/file grouping supports arrow keys as a radio group. Alt+1 through Alt+4 select views; AltGr combinations are ignored. Escape closes Help. Monaco supports its normal editor shortcuts, including Ctrl+Space for schema completion and Ctrl+F for search.
+Focus the divider and use arrow keys to resize. The output tab strip supports Left, Right, Home and End. Priority/category/file grouping supports arrow keys as a radio group. Alt+1 through Alt+6 select Render, Edit, Markdown, Preview, Clank and Prompt respectively; AltGr combinations are ignored. Escape closes Help. Monaco supports its normal editor shortcuts, including Ctrl+Space for schema completion and Ctrl+F for search.
 
 ## Validation
 

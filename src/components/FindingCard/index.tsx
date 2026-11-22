@@ -1,5 +1,5 @@
 import type {Category, Finding} from '#src/lib/report/index.ts'
-import type {CSSProperties, MouseEvent} from 'react'
+import type {CSSProperties, MouseEvent, ReactNode} from 'react'
 
 import {useEffect, useRef} from 'react'
 
@@ -13,16 +13,17 @@ type Props = {
   isActive?: boolean
   onCategorySelect?: (category: Category) => void
   onReveal?: (finding: Finding) => void
+  titleAction?: ReactNode
 }
 const hasTextSelection = () => {
   const selection = globalThis.getSelection?.()
   return Boolean(selection && !selection.isCollapsed)
 }
 /** one finding with its metadata and suggested changes */
-export default ({finding, isActive = false, onReveal, onCategorySelect}: Props) => {
+export default ({finding, isActive = false, onReveal, onCategorySelect, titleAction}: Props) => {
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
-    if (isActive) {
+    if (isActive && document.activeElement?.closest('[data-input-editor]')) {
       ref.current?.scrollIntoView?.({
         block: 'nearest',
         behavior: 'smooth',
@@ -46,6 +47,7 @@ export default ({finding, isActive = false, onReveal, onCategorySelect}: Props) 
     <header className={css.header}>
       <span className={css.badge} title={finding.priority.label}>{finding.priority.code}</span>
       <Markdown className={css.title} as='h3' inline source={finding.title} />
+      {titleAction}
     </header>
     <div className={css.meta}>
       <button className={css.id} title={finding.source ? `Reveal in editor (line ${finding.source.line})` : 'Reveal in editor'} type='button' onClick={() => onReveal?.(finding)}>

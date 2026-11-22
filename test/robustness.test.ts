@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'bun:test'
 
+import stringifyClank from 'stringify-clank'
 import {parse, stringify} from 'yaml'
 
 import {needsSyntaxOnlyEditor} from '#src/lib/editorSafety.ts'
@@ -8,7 +9,7 @@ import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
 import {inlineCode} from '#src/lib/markdown/syntax.ts'
 import {formatInput, materializeSnapshot, parseInput, parseSnapshot} from '#src/lib/report/parseInput.ts'
 
-const documentFor = (edit?: unknown) => ({entries: {sample: {
+const documentFor = (edit?: unknown) => ({collection: {}, entries: {sample: {
   title: 'A valid sample finding',
   category: 'correctness',
   ...edit ? {suggestedChanges: [{
@@ -63,17 +64,38 @@ describe('untrusted document boundaries', () => {
     })).toThrow('rendering budget')
   })
   test('limits the number of renderable findings', () => {
-    const entries = Object.fromEntries(Array.from({length: 5001}, (_, i) => [`item_${i}`, {
+    const entries = Object.fromEntries(Array.from({length: 5000}, (_, i) => [`item_${i}`, {
       title: 'Another valid finding',
       category: 'misc',
     }]))
-    const result = parseInput(JSON.stringify({entries}))
+    const result = parseInput(JSON.stringify({entries: {root: entries.item_0}, collection: {other: {entries}}}))
     expect(result.report).toBeUndefined()
     expect(result.isYamlValid).toBe(true)
     expect(result.issues[0].message).toContain('5,000')
   })
 })
 describe('raw value fidelity', () => {
+  test('Clank omits hidden entries and visibility fields across reports without changing the source', () => {
+    const finding = {title: 'A visible finding', category: 'misc'}
+    const hidden = {...finding, visible: false}
+    const raw = {
+      entries: {same: hidden, other: {...finding, visible: true}, visible: finding},
+      collection: {
+        review: {entries: {same: {...finding, visible: true}, other: hidden}},
+        archived: {entries: {same: hidden}},
+      },
+    }
+    const result = parseInput(stringify(raw))
+    expect(result.issues).toEqual([])
+    expect(result.clank).toBe(stringifyClank({
+      entries: {other: finding, visible: finding},
+      collection: {
+        review: {entries: {same: finding}},
+        archived: {entries: {}},
+      },
+    }))
+    expect(result.raw).toEqual(raw)
+  })
   test('scalar fields and omitted defaults remain omitted in Clank', () => {
     const raw = documentFor({
       action: 'edit',
@@ -109,7 +131,7 @@ describe('raw value fidelity', () => {
     expect(parse(formatInput(raw, 'yaml'))).toEqual(raw)
   })
   test('quoted numeric IDs retain source order rather than JS property order', () => {
-    const result = parseInput('entries:\n  "20":\n    title: First in the source\n    category: misc\n  "3":\n    title: Second in the source\n    category: misc\n')
+    const result = parseInput('collection: {}\nentries:\n  "20":\n    title: First in the source\n    category: misc\n  "3":\n    title: Second in the source\n    category: misc\n')
     expect(result.report!.findings.map(finding => finding.id)).toEqual(['20', '3'])
   })
   test('worker snapshots rebuild real domain instances', () => {
@@ -173,7 +195,7 @@ describe('complete edit support and exports', () => {
     expect(reportToMarkdown(result.report!)).toContain(`action: ${edit.action}`)
   })
   test('literal prose cannot inject HTML or Markdown headings', () => {
-    const raw = {entries: {hostile: {
+    const raw = {collection: {}, entries: {hostile: {
       title: '<img src=x onerror=alert(1)>',
       description: '# injected\n<script>alert(1)</script>\n[link](javascript:alert(1))',
       category: 'security',
@@ -236,8 +258,9 @@ describe('upstream editor guard', () => {
     expect(needsSyntaxOnlyEditor('x'.repeat(maxInputBytes + 1))).toBe(true)
   })
   test('acyclic aliases remain valid in authoritative report parsing', () => {
-    const result = parseInput('entries:\n  one: &item\n    title: A shared valid finding\n    category: misc\n  two: *item\n')
+    const result = parseInput('collection: {}\nentries:\n  one: &item\n    title: A shared valid finding\n    category: misc\n  two: *item\n')
     expect(result.issues).toEqual([])
     expect(result.report!.findings).toHaveLength(2)
+    expect(result.report!.findings.every(finding => !finding.source?.visibilityEdit)).toBe(true)
   })
 })

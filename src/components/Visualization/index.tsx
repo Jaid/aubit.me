@@ -1,5 +1,5 @@
 import type {Category, Finding, PriorityLevel, Report} from '#src/lib/report/index.ts'
-import type {CSSProperties} from 'react'
+import type {CSSProperties, ReactNode} from 'react'
 
 import clsx from 'clsx'
 import {useEffect, useState} from 'react'
@@ -15,7 +15,9 @@ import css from './style.module.sass'
 export type GroupMode = 'category' | 'file' | 'priority'
 type Props = {
   activeFindingId?: string
+  allDisabled?: boolean
   onReveal?: (finding: Finding) => void
+  renderTitleAction?: (finding: Finding) => ReactNode
   report: Report
 }
 const groupModes: ReadonlyArray<{
@@ -85,10 +87,11 @@ const groupFindings = (findings: ReadonlyArray<Finding>, mode: 'category' | 'pri
     findings: findings.filter(finding => finding.hasCategory(category.id)),
   })).filter(group => group.findings.length > 0).toSorted((a, b) => b.findings.length - a.findings.length)
 }
-const FileGroups = ({findings, onReveal, activeFindingId}: {
+const FileGroups = ({findings, onReveal, activeFindingId, renderTitleAction}: {
   activeFindingId?: string
   findings: ReadonlyArray<Finding>
   onReveal?: (finding: Finding) => void
+  renderTitleAction?: Props['renderTitleAction']
 }) => {
   const files = new Map<string, Array<{
     change: Finding['changes'][number]
@@ -114,10 +117,13 @@ const FileGroups = ({findings, onReveal, activeFindingId}: {
       </h2>
       <div className={css.fileTouches}>
         {touches.map(({finding, change}, index) => <div key={`${finding.id}:${index}`} className={css.fileTouch} data-active={finding.id === activeFindingId || undefined} style={toneStyle(finding.priority.hue, finding.priority.chroma)}>
-          <button className={css.touchFinding} title='Reveal in editor' type='button' onClick={() => onReveal?.(finding)}>
-            <span className={css.touchBadge}>{finding.priority.code}</span>
-            <Markdown inline source={finding.title} />
-          </button>
+          <div className={css.touchHeader}>
+            <button className={css.touchFinding} title='Reveal in editor' type='button' onClick={() => onReveal?.(finding)}>
+              <span className={css.touchBadge}>{finding.priority.code}</span>
+              <Markdown inline source={finding.title} />
+            </button>
+            {renderTitleAction?.(finding)}
+          </div>
           <div className={css.touchEdits}>
             {change.edits.map((edit, editIndex) => <EditView key={editIndex} change={change} edit={edit} />)}
           </div>
@@ -130,13 +136,13 @@ const FileGroups = ({findings, onReveal, activeFindingId}: {
         <span className={css.groupCount}>{pluralize(withoutChanges.length, 'finding')}</span>
       </h2>
       <div className={css.cards}>
-        {withoutChanges.map(finding => <FindingCard key={finding.id} finding={finding} isActive={finding.id === activeFindingId} onReveal={onReveal} />)}
+        {withoutChanges.map(finding => <FindingCard key={finding.id} finding={finding} isActive={finding.id === activeFindingId} titleAction={renderTitleAction?.(finding)} onReveal={onReveal} />)}
       </div>
     </section>}
   </>
 }
 /** interactive dashboard for a report */
-export default ({report, activeFindingId, onReveal}: Props) => {
+export default ({report, activeFindingId, allDisabled, onReveal, renderTitleAction}: Props) => {
   const [query, setQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<ReadonlySet<PriorityLevel>>(() => new Set)
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>()
@@ -180,8 +186,8 @@ export default ({report, activeFindingId, onReveal}: Props) => {
   if (report.isEmpty) {
     return <div className={css.empty}>
       <div className={css.emptyIcon} aria-hidden>✓</div>
-      <div className={css.emptyTitle}>No findings</div>
-      <div className={css.emptyText}>Add entries below <code>entries:</code> in the editor to see them here.</div>
+      <div className={css.emptyTitle}>{allDisabled ? 'No enabled findings' : 'No findings'}</div>
+      <div className={css.emptyText}>{allDisabled ? 'Turn on a finding in Edit to include it here.' : <>Add entries below <code>entries:</code> in the editor to see them here.</>}</div>
     </div>
   }
   return <div className={css.container}>
@@ -228,18 +234,18 @@ export default ({report, activeFindingId, onReveal}: Props) => {
       <button className={css.reset} type='button' onClick={resetFilters}>Reset filters</button>
     </div>}
     {findings.length === 0 && <div className={css.noMatches}>No findings match the current filters.</div>}
-    {groupMode === 'file' ? <FileGroups activeFindingId={activeFindingId} findings={visibleFindings} onReveal={onReveal} /> : groupFindings(visibleFindings, groupMode).map(group => <section key={group.key} className={css.group}>
+    {groupMode === 'file' ? <FileGroups activeFindingId={activeFindingId} findings={visibleFindings} renderTitleAction={renderTitleAction} onReveal={onReveal} /> : groupFindings(visibleFindings, groupMode).map(group => <section key={group.key} className={css.group}>
       <h2 className={css.groupTitle} style={toneStyle(group.hue, group.chroma)}>
         <span className={css.groupDot} />
         <span>{group.title}</span>
         <span className={css.groupCount}>{formatCount(group.findings.length)}</span>
       </h2>
       <div className={css.cards}>
-        {group.findings.map(finding => <FindingCard key={finding.id} finding={finding} isActive={finding.id === activeFindingId} onCategorySelect={selectCategory} onReveal={onReveal} />)}
+        {group.findings.map(finding => <FindingCard key={finding.id} finding={finding} isActive={finding.id === activeFindingId} titleAction={renderTitleAction?.(finding)} onCategorySelect={selectCategory} onReveal={onReveal} />)}
       </div>
     </section>)}
     {findings.length > visibleFindings.length && <div className={css.more}>
-      <span>Displaying {visibleFindings.length} of {findings.length} matching findings. Exports always include the complete report.</span>
+      <span>Displaying {visibleFindings.length} of {findings.length} matching findings. Exports include all enabled findings.</span>
       <button type='button' onClick={() => setVisibleLimit(limit => limit + 100)}>Load 100 more findings</button>
     </div>}
   </div>

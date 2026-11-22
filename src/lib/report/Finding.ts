@@ -9,6 +9,14 @@ export type SourceLocation = {
   line: number
   start: number
 }
+export type SourceEdit = {
+  end: number
+  start: number
+  text: string
+}
+export type EntrySource = SourceLocation & {
+  visibilityEdit?: SourceEdit
+}
 type FindingOptions = {
   categories: ReadonlyArray<Category>
   changes: ReadonlyArray<SuggestedChange>
@@ -16,8 +24,9 @@ type FindingOptions = {
   id: string
   index: number
   priority: Priority
-  source?: SourceLocation
+  source?: EntrySource
   title: string
+  visible: boolean
 }
 /** one entry of an Aubit report */
 export class Finding {
@@ -28,8 +37,9 @@ export class Finding {
   /** position in the input document */
   readonly index: number
   readonly priority: Priority
-  readonly source: SourceLocation | undefined
+  readonly source: EntrySource | undefined
   readonly title: string
+  readonly visible: boolean
   constructor(options: FindingOptions) {
     this.id = options.id
     this.index = options.index
@@ -39,6 +49,7 @@ export class Finding {
     this.categories = options.categories
     this.changes = options.changes
     this.source = options.source
+    this.visible = options.visible
   }
   get editCount() {
     return this.changes.reduce((sum, change) => sum + change.edits.length, 0)

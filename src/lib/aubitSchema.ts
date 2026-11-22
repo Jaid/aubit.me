@@ -1,8 +1,9 @@
-import type schema from 'aubit-schema'
+import type {documentSchema, reportSchema} from 'aubit-schema'
 
-import {jsonSchema} from 'aubit-schema'
+import {documentJsonSchema} from 'aubit-schema'
 
-export type AubitData = ReturnType<typeof schema.parse>
+export type DocumentData = ReturnType<typeof documentSchema.parse>
+export type AubitData = ReturnType<typeof reportSchema.parse>
 export type AubitItem = AubitData['entries'][string]
 
 export type CategoryId = ArrayableItem<AubitItem['category']>
@@ -22,7 +23,7 @@ type JsonSchemaNode = {
 }
 type SuggestedChangeData = NonNullable<AubitItem['suggestedChanges']>[number]
 
-const rootSchema = jsonSchema as JsonSchemaNode
+const rootSchema = documentJsonSchema as JsonSchemaNode
 const resolve = (node: JsonSchemaNode): JsonSchemaNode => {
   if (!node.$ref) {
     return node
@@ -79,5 +80,3 @@ export const priorityDefinitions = getConstOptions('priority').map(option => {
     description: option.description,
   }
 })
-
-export {jsonSchema, default as schema} from 'aubit-schema'

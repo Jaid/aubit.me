@@ -27,8 +27,8 @@ describe('parseInput', () => {
     expect(report.files).toHaveLength(7)
   })
   test('keeps raw input untouched by schema defaults', () => {
-    const result = parseInput('entries:\n  abc:\n    title: Missing priority here\n    category: misc\n')
-    expect(result.raw).toEqual({entries: {abc: {
+    const result = parseInput('collection: {}\nentries:\n  abc:\n    title: Missing priority here\n    category: misc\n')
+    expect(result.raw).toEqual({collection: {}, entries: {abc: {
       title: 'Missing priority here',
       category: 'misc',
     }}})
@@ -42,7 +42,7 @@ describe('parseInput', () => {
     expect(result.issues[0].location?.line).toBeGreaterThan(0)
   })
   test('reports schema issues located at the offending node', () => {
-    const text = 'entries:\n  ok_id:\n    title: A good enough title\n    category: nonsense\n'
+    const text = 'entries:\n  ok_id:\n    title: A good enough title\n    category: nonsense\ncollection: {}\n'
     const result = parseInput(text)
     expect(result.isYamlValid).toBe(true)
     expect(result.report).toBeUndefined()
@@ -52,14 +52,14 @@ describe('parseInput', () => {
     expect(text.slice(issue.location!.start, issue.location!.end)).toBe('category: nonsense')
   })
   test('locates unrecognized keys', () => {
-    const result = parseInput('entries:\n  ok_id:\n    title: A good enough title\n    category: misc\n    extra: 1\n')
+    const result = parseInput('entries:\n  ok_id:\n    title: A good enough title\n    category: misc\n    extra: 1\ncollection: {}\n')
     const issue = result.issues[0]
     expect(issue.message).toContain('extra')
     expect(issue.location?.line).toBe(5)
   })
   test('rejects invalid IDs and short titles', () => {
-    expect(parseInput('entries:\n  _bad:\n    title: A good enough title\n    category: misc\n').report).toBeUndefined()
-    expect(parseInput('entries:\n  good:\n    title: short\n    category: misc\n').report).toBeUndefined()
+    expect(parseInput('collection: {}\nentries:\n  _bad:\n    title: A good enough title\n    category: misc\n').report).toBeUndefined()
+    expect(parseInput('collection: {}\nentries:\n  good:\n    title: short\n    category: misc\n').report).toBeUndefined()
   })
   test('rejects duplicate keys', () => {
     const result = parseInput('entries:\n  a:\n    title: A good enough title\n    category: misc\n  a:\n    title: A good enough title\n    category: misc\n')
@@ -69,9 +69,12 @@ describe('parseInput', () => {
     expect(parseInput('').report).toBeUndefined()
     expect(parseInput('- 1').issues[0].source).toBe('schema')
     expect(parseInput('entries: {}').report!.isEmpty).toBe(true)
+    expect(parseInput('entries: {}\ncollection: null').report).toBeUndefined()
+    expect(parseInput('collection: {}').report).toBeUndefined()
+    expect(parseInput('entries: {}\ncollection: {}').report!.isEmpty).toBe(true)
   })
   test('accepts JSON', () => {
-    const result = parseInput(JSON.stringify({entries: {json_entry: {
+    const result = parseInput(JSON.stringify({collection: {}, entries: {json_entry: {
       title: 'Written as plain JSON',
       category: ['hygiene'],
       priority: 4,
@@ -127,7 +130,7 @@ describe('entry caret toggling', () => {
     expect(getEntryBounds(' \n\t ', 0, 4)).toBeUndefined()
   })
   test('works for entries that share a line, like compact JSON', () => {
-    const text = '{"entries": {"a": {"title": "A good enough title", "category": "misc"}, "b": {"title": "Another valid title", "category": "misc"}}}'
+    const text = '{"collection": {}, "entries": {"a": {"title": "A good enough title", "category": "misc"}, "b": {"title": "Another valid title", "category": "misc"}}}'
     const source = parseInput(text).report!.getFinding('a')!.source!
     const trimmed = getEntryBounds(text, source.start, source.end)!
     expect(text.slice(trimmed.start, trimmed.end)).toBe('"a": {"title": "A good enough title", "category": "misc"}')
@@ -328,10 +331,10 @@ describe('Markdown', () => {
     expect(markdown.endsWith('\n')).toBe(true)
   })
   test('renders empty reports', () => {
-    expect(reportToMarkdown(parseInput('entries: {}').report!)).toBe('# Aubit report\n\nNo findings.\n')
+    expect(reportToMarkdown(parseInput('entries: {}\ncollection: {}').report!)).toBe('# Aubit report\n\nNo findings.\n')
   })
   test('escapes pipes in table titles', () => {
-    const markdown = reportToMarkdown(parseInput('entries:\n  pipe:\n    title: a | b | c title\n    category: misc\n').report!)
+    const markdown = reportToMarkdown(parseInput('collection: {}\nentries:\n  pipe:\n    title: a | b | c title\n    category: misc\n').report!)
     expect(markdown).toContain(String.raw`a \| b \| c title`)
   })
 })

@@ -71,7 +71,7 @@ describe('isolated component behavior', () => {
       title: `Finding number ${i}`,
       category: 'misc',
     }]))
-    const large = parseInput(JSON.stringify({entries})).report!
+    const large = parseInput(JSON.stringify({entries, collection: {}})).report!
     const {container} = await component('Visualization', {report: large})
     expect(container.querySelectorAll('article[data-finding]')).toHaveLength(100)
     fireEvent.click(screen.getByText('Load 100 more findings'))
@@ -81,7 +81,7 @@ describe('isolated component behavior', () => {
     expect(large.findings).toHaveLength(205)
   })
   test('empty reports have an intentional empty state', async () => {
-    const {container} = await component('Visualization', {report: parseInput('entries: {}').report})
+    const {container} = await component('Visualization', {report: parseInput('entries: {}\ncollection: {}').report})
     expect(container.textContent).toContain('No findings')
   })
   test('finding source navigation uses the original YAML line', async () => {
@@ -111,7 +111,7 @@ describe('isolated component behavior', () => {
       pending: false,
       isStale: false,
       text: example,
-      tab: 'visualization',
+      tab: 'render',
       onTabChange: () => {},
       onReveal: () => {},
       notify: () => {},
@@ -126,12 +126,13 @@ describe('isolated component behavior', () => {
       pending: false,
       isStale: true,
       text: 'entries: [',
-      tab: 'visualization',
+      tab: 'edit',
       onTabChange: () => {},
       onReveal: () => {},
       notify: () => {},
     })
     expect(container.textContent).toContain('Showing the last valid report')
+    expect(screen.getAllByRole<HTMLButtonElement>('switch').every(control => control.disabled)).toBe(true)
     expect((screen.getByRole('button', {name: 'Download Markdown'}) as HTMLButtonElement).disabled).toBe(true)
     expect(container.querySelectorAll('article[data-finding]')).toHaveLength(5)
   })

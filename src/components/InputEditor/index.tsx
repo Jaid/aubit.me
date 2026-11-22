@@ -1,8 +1,9 @@
 import type {MonacoApi, MonacoEditor} from '#src/lib/monaco.ts'
+import type {SourceEdit} from '#src/lib/report/Finding.ts'
 import type {InputIssue} from '#src/lib/report/index.ts'
 import type {Ref} from 'react'
 
-import {jsonSchema} from 'aubit-schema'
+import {documentJsonSchema} from 'aubit-schema'
 import Monacozen from 'monacozen'
 import {useEffect, useImperativeHandle, useRef} from 'react'
 
@@ -14,6 +15,7 @@ import {revealEntry, revealRange, trackCaretPlacement} from '#src/lib/monaco.ts'
 import css from './style.module.sass'
 
 export type InputEditorHandle = {
+  applyEdit: (source: string, edit: SourceEdit) => boolean
   /** selects a source range, for example of a diagnostic */
   reveal: (start: number, end: number) => void
   /** places the caret at an entry’s nearest edge, toggles to the other edge on repeated calls and briefly highlights the entry */
@@ -60,6 +62,27 @@ export default function InputEditor({value, language, disabled, issues, onChange
     editorRef.current = null
   }, [])
   useImperativeHandle(ref, () => ({
+    applyEdit: (source, edit) => {
+      const editor = editorRef.current
+      const model = editor?.getModel()
+      if (!editor || !model || model.getValue() !== source) {
+        return false
+      }
+      const from = model.getPositionAt(edit.start)
+      const to = model.getPositionAt(edit.end)
+      editor.pushUndoStop()
+      const applied = editor.executeEdits('aubit-review', [{
+        range: {
+          startLineNumber: from.lineNumber,
+          startColumn: from.column,
+          endLineNumber: to.lineNumber,
+          endColumn: to.column,
+        },
+        text: edit.text,
+      }])
+      editor.pushUndoStop()
+      return applied
+    },
     reveal: (start, end) => {
       if (editorRef.current) {
         revealRange(editorRef.current, start, end)
@@ -146,9 +169,9 @@ export default function InputEditor({value, language, disabled, issues, onChange
       }
     }}
   >
-    <EditorBoundary fallback={<div className={css.fallback}><p role='alert'>Monaco could not load. Your draft is available in this plain-text editor.</p><textarea aria-label='Aubit report input' readOnly={disabled} spellCheck={false} value={value} onChange={event => onChange(event.target.value)} /></div>}>
+    <EditorBoundary fallback={<div className={css.fallback}><p role='alert'>Monaco could not load. Your draft is available in this plain-text editor.</p><textarea aria-label='Aubit document input' readOnly={disabled} spellCheck={false} value={value} onChange={event => onChange(event.target.value)} /></div>}>
       <Monacozen
-        key={syntaxOnly ? 'syntax-only' : 'schema-aware'} aria-label='Aubit report input' beforeMount={registerSafeYamlLanguage} dark={theme === 'dark'} language={editorLanguage} loading={<div className={css.loading}>Loading editor…</div>} monaco={{
+        key={syntaxOnly ? 'syntax-only' : 'schema-aware'} aria-label='Aubit document input' beforeMount={registerSafeYamlLanguage} dark={theme === 'dark'} language={editorLanguage} loading={<div className={css.loading}>Loading editor…</div>} monaco={{
           padding: {
             top: 10,
             bottom: 10,
@@ -156,7 +179,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
           wordWrap: 'on',
           tabSize: 2,
           scrollBeyondLastLine: false,
-        }} path='file:///aubit-input' readOnly={disabled} schema={syntaxOnly ? undefined : jsonSchema} value={value} onChange={handleChange} onMount={handleMount}
+        }} path='file:///aubit-input' readOnly={disabled} schema={syntaxOnly ? undefined : documentJsonSchema} value={value} onChange={handleChange} onMount={handleMount}
       />
     </EditorBoundary>
     {syntaxOnly && <div className={css.serviceNote}>Syntax-only editor for oversized input. Bounded report validation remains active.</div>}

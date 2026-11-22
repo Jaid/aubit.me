@@ -72,3 +72,4 @@ entries:
           - action: prepend
             content: |
               const sortedEntries = entries.toSorted(compareEntries)
+collection: {}

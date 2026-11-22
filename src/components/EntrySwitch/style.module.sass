@@ -1,0 +1,35 @@
+.switch
+  position: relative
+  flex: none
+  align-self: flex-start
+  margin-inline-start: auto
+  width: 34px
+  height: 24px
+  padding: 0
+  border: 0
+  border-radius: 6px
+  background: none
+  color: var(--muted)
+  cursor: pointer
+  &::before, &::after
+    position: absolute
+    content: ''
+    border-radius: 999px
+  &::before
+    inset: 3px 1px
+    border: 1px solid currentColor
+  &::after
+    inset: 6px auto auto 4px
+    width: 12px
+    height: 12px
+    background: currentColor
+  &[aria-checked=true]
+    color: var(--accent)
+    &::before
+      background: currentColor
+    &::after
+      background: var(--background)
+      translate: 14px 0
+  &:disabled
+    opacity: 0.5
+    cursor: default
