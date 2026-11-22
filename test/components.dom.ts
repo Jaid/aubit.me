@@ -92,7 +92,9 @@ describe('isolated component behavior', () => {
     })
     fireEvent.click(screen.getByTitle('Reveal in editor (line 41)'))
     expect(revealed).toEqual(['readme_spelling'])
-    expect(screen.getByText('## Installation')).toBeDefined()
+    const added = document.querySelector('[data-kind=add]')!
+    expect(added.textContent).toBe('+## Installation')
+    expect(added.querySelector('ins')?.textContent).toBe('l')
   })
   test('long issue lists expand without discarding diagnostics', async () => {
     const result = parseInput('entries:\n  a:\n    title: x\n    category: nope\n    foo: 1\n  b:\n    title: y\n    category: nope\n')

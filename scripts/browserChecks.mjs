@@ -310,6 +310,22 @@ try {
     await page.waitForFunction(() => !document.querySelector('#input .monaco-editor .view-overlays [class*=flash]'))
   })
 
+  await check('literal replacements highlight only changed graphemes in cards, preview and HTML', async state => {
+    const edit = {action: 'edit', needle: 'listed them on 2026-11-01\nold 👩‍💻 <em>', replacement: 'listed them on 2026-11-22\nold 👨‍💻 <em>'}
+    await paste(state, JSON.stringify({entries: {dates: {title: 'Update listing date', category: 'misc', suggestedChanges: [{file: 'notes.txt', edit}]}}}))
+    const changes = element => [...element.querySelectorAll('del,ins')].map(node => [node.localName, node.textContent])
+    const expected = [['del', '01'], ['del', '👩‍💻'], ['ins', '22'], ['ins', '👨‍💻']]
+    for (const mode of ['render', 'edit', 'preview']) {
+      await tab(state.page, mode)
+      const selector = mode === 'preview' ? 'pre[data-language=diff]' : 'article[data-finding=dates] pre'
+      assert.deepEqual(await state.page.$eval(selector, changes), expected)
+      assert.equal(await state.page.$(selector + ' em'), null)
+    }
+    const html = await downloaded(state, 'Download HTML')
+    assert.ok(html.text.includes('listed them on 2026-11-<del>01</del>'))
+    assert.ok(html.text.includes('listed them on 2026-11-<ins>22</ins>'))
+  })
+
   await check('exact source, Markdown, Clank, and complete HTML downloads', async state => {
     const input = await downloaded(state, 'Download input')
     assert.equal(input.text, example)

@@ -1,0 +1,9 @@
+pre code del {
+  background: color-mix(in oklab, var(--negative, light-dark(#aa283b, #ff9aaa)) 32%, transparent);
+  text-decoration: line-through;
+}
+
+pre code ins {
+  background: color-mix(in oklab, var(--positive, light-dark(#176d35, #7dde98)) 32%, transparent);
+  text-decoration: underline;
+}

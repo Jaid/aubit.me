@@ -60,13 +60,9 @@
   background: var(--code-surface)
   font-size: 12.5px
   line-height: 1.5
-  overflow-x: auto
-  scrollbar-width: thin
   user-select: text
   >code
     display: block
-    min-width: max-content
-    white-space: pre
 
 .line
   display: flex
@@ -79,7 +75,7 @@
     background: oklch(from var(--negative) l c h / 10%)
     .gutter
       color: var(--negative)
-    .text
+    .text:not([data-compared])
       text-decoration: line-through
       text-decoration-color: oklch(from var(--negative) l c h / 45%)
   &[data-kind=context]
@@ -94,6 +90,8 @@
 
 .text
   min-width: 0
+  white-space: break-spaces
+  overflow-wrap: anywhere
 
 .omitted
   display: block

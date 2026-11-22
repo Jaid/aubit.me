@@ -1,6 +1,8 @@
+import type {HighlightedLines} from '#src/lib/inlineDiff.ts'
 import type {Edit, EditTone, Needle, SuggestedChange} from '#src/lib/report/index.ts'
 import type {CSSProperties, ReactNode} from 'react'
 
+import {inlineDiff} from '#src/lib/inlineDiff.ts'
 import {ContentEdit, DeleteEdit, EmptyEdit, EnsureEdit, EraseEdit, InsertEdit, PathEdit, ReplaceEdit, TextNeedle} from '#src/lib/report/index.ts'
 
 import css from './style.module.sass'
@@ -20,13 +22,15 @@ const toneHues: Record<EditTone, string> = {
   neutral: 'var(--muted)',
 }
 const splitLines = (text: string) => text.replace(/\r?\n$/, '').split('\n')
-const Lines = ({lines, kind}: {
+const Lines = ({lines, kind, highlights}: {
+  highlights?: HighlightedLines
   kind: LineKind
   lines: ReadonlyArray<string>
 }) => {
+  const Change = kind === 'remove' ? 'del' : 'ins'
   return <>{lines.slice(0, 200).map((line, index) => <span key={index} className={css.line} data-kind={kind}>
     <span className={css.gutter} aria-hidden>{gutters[kind]}</span>
-    <span className={css.text}>{line || '\u{200B}'}</span>
+    <span className={css.text} data-compared={highlights ? true : undefined}>{line && highlights ? highlights[index].map((part, i) => (part.changed ? <Change key={i}>{part.text}</Change> : part.text)) : line || '\u{200B}'}</span>
   </span>)}{lines.length > 200 && <span className={css.omitted}>Preview limited to 200 lines. {lines.length - 200} more lines are retained in the complete exports.</span>}</>
 }
 const Code = ({children}: {children: ReactNode}) => {
@@ -65,9 +69,12 @@ const getEditParts = (edit: Edit, change: SuggestedChange): EditParts => {
   }
   if (edit instanceof ReplaceEdit) {
     if (edit.needle instanceof TextNeedle) {
+      const before = edit.needle.lines
+      const after = edit.replacementLines
+      const highlights = inlineDiff(before, after)
       return {block: <Code>
-        <Lines kind='remove' lines={edit.needle.lines} />
-        <Lines kind='add' lines={edit.replacementLines} />
+        <Lines highlights={highlights?.removed} kind='remove' lines={before} />
+        <Lines highlights={highlights?.added} kind='add' lines={after} />
       </Code>}
     }
     return {
