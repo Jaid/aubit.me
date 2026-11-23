@@ -1,5 +1,5 @@
 import type {Needle} from '../needles/index.ts'
-import type {EditContext, EditTone} from './base/Edit.ts'
+import type {EditTone} from './base/Edit.ts'
 
 import {codeBlock, diffBlock, inlineCode, isMultiline, trimFinalNewline} from '#src/lib/markdown/syntax.ts'
 
@@ -7,7 +7,6 @@ import {TextNeedle} from '../needles/index.ts'
 import {Edit} from './base/Edit.ts'
 
 const joinParagraphs = (...paragraphs: Array<string | undefined>) => paragraphs.filter(Boolean).join('\n\n')
-/** operation that targets a located part of the file */
 export abstract class NeedleEdit extends Edit {
   readonly needle: Needle
   constructor(needle: Needle) {
@@ -15,7 +14,6 @@ export abstract class NeedleEdit extends Edit {
     this.needle = needle
   }
 }
-/** replaces the located part */
 export class ReplaceEdit extends NeedleEdit {
   readonly action = 'edit'
   readonly replacement: string
@@ -27,10 +25,7 @@ export class ReplaceEdit extends NeedleEdit {
   get replacementLines() {
     return trimFinalNewline(this.replacement).split('\n')
   }
-  get verb() {
-    return 'replace'
-  }
-  toMarkdown({language}: EditContext) {
+  toMarkdown(language: string) {
     if (this.needle instanceof TextNeedle) {
       return `Replace:\n\n${diffBlock(this.needle.text, this.replacement)}`
     }
@@ -44,7 +39,6 @@ export class ReplaceEdit extends NeedleEdit {
     return joinParagraphs(`${subject} with:`, codeBlock(this.replacement, language))
   }
 }
-/** inserts content next to the located part */
 export class InsertEdit extends NeedleEdit {
   readonly action: 'insert_after' | 'insert_before'
   readonly content: string
@@ -60,7 +54,7 @@ export class InsertEdit extends NeedleEdit {
   get position() {
     return this.action === 'insert_before' ? 'before' : 'after'
   }
-  toMarkdown({language}: EditContext) {
+  toMarkdown(language: string) {
     const needleBlock = this.needle.toMarkdownBlock()
     const lead = `Insert ${this.position} ${this.needle.toMarkdownPhrase()}:`
     if (!needleBlock) {
@@ -69,7 +63,6 @@ export class InsertEdit extends NeedleEdit {
     return joinParagraphs(lead, needleBlock, 'Content:', codeBlock(this.content, language))
   }
 }
-/** removes the located part */
 export class EraseEdit extends NeedleEdit {
   readonly action = 'erase'
   readonly tone: EditTone = 'destructive'

@@ -23,7 +23,7 @@ export const createEdit = (data: EditData): Edit => {
     case 'erase': { return new EraseEdit(createNeedle(data.needle)) }
   }
 }
-export type {EditContext, EditTone} from './base/Edit.ts'
+export type {EditTone} from './base/Edit.ts'
 export {Edit} from './base/Edit.ts'
 export {AppendEdit, ContentEdit, OverwriteEdit, PrependEdit} from './ContentEdit.ts'
 export {DeleteEdit, EmptyEdit, EnsureEdit} from './FileStateEdit.ts'

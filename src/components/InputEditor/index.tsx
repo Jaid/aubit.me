@@ -65,7 +65,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
     applyEdit: (source, edit) => {
       const editor = editorRef.current
       const model = editor?.getModel()
-      if (!editor || !model || model.getValue() !== source) {
+      if (!editor || model?.getValue() !== source) {
         return false
       }
       const from = model.getPositionAt(edit.start)
@@ -102,7 +102,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
         range,
         options: {
           className: css.flash,
-          stickiness: 1,
+          stickiness: monacoRef.current?.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
         },
       }])
       flash.current = {
@@ -152,7 +152,6 @@ export default function InputEditor({value, language, disabled, issues, onChange
   const handleChange = (next: string | undefined) => {
     const text = next ?? ''
     const model = editorRef.current?.getModel()
-    // Switch before the YAML service starts expensive work on an oversized document.
     if (model && monacoRef.current && needsSyntaxOnlyEditor(text)) {
       monacoRef.current.editor.setModelLanguage(model, safeYamlLanguage)
     }
@@ -160,7 +159,7 @@ export default function InputEditor({value, language, disabled, issues, onChange
   }
   return <div
     className={css.container} data-input-editor onPasteCapture={event => {
-    // Clipboard contents are available before Monaco updates its model or schedules language-service validation.
+      // Switch before Monaco schedules language-service validation for the paste.
       if (needsSyntaxOnlyEditor(event.clipboardData.getData('text'))) {
         const model = editorRef.current?.getModel()
         if (model && monacoRef.current) {

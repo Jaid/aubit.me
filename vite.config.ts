@@ -3,14 +3,12 @@ import type {UserConfig} from 'vite'
 import babelPlugin from '@rolldown/plugin-babel'
 import reactPlugin, {reactCompilerPreset} from '@vitejs/plugin-react'
 import postcssAutoprefixer from 'autoprefixer'
+import browserslist from 'browserslist'
 import postcssNormalize from 'postcss-normalize'
 import {defineConfig} from 'vite'
-import mediaMixinsPlugin from 'vite-plugin-media-mixins'
 
-const getSchemeMixin = (scheme: 'dark' | 'light') => {
-  const opposite = scheme === 'dark' ? 'light' : 'dark'
-  return {body: [`:root[data-${scheme}] & {`, '  @content;', '}', `@media (prefers-color-scheme: ${scheme}) {`, `  :root:not([data-${opposite}]) & {`, '    @content;', '}', '}']}
-}
+// Desktop and Android Chrome can be on different stable majors. Rolldown accepts one target per engine.
+const chromiumMajor = Math.min(...browserslist().map(target => Number.parseInt(target.split(' ')[1], 10)))
 const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'"
 
 export default defineConfig(({mode}) => ({
@@ -18,10 +16,6 @@ export default defineConfig(({mode}) => ({
   plugins: [
     reactPlugin(),
     babelPlugin({presets: [reactCompilerPreset()]}),
-    mediaMixinsPlugin({additionalMixins: {
-      light: getSchemeMixin('light'),
-      dark: getSchemeMixin('dark'),
-    }}),
     {
       name: 'aubit-production-policy',
       transformIndexHtml: {
@@ -39,7 +33,7 @@ export default defineConfig(({mode}) => ({
   ],
   css: {postcss: {plugins: [postcssNormalize() as unknown as import('postcss').Plugin, postcssAutoprefixer()]}},
   build: {
-    target: 'chrome154',
+    target: `chrome${chromiumMajor}`,
     outDir: mode === 'development' ? 'out/build/development' : 'dist',
     minify: 'oxc',
     reportCompressedSize: false,

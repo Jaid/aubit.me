@@ -22,8 +22,8 @@ type Props = {
 
 export default function EditorHeader(props: Props) {
   const file = useRef<HTMLInputElement>(null)
-  const {pending, issueCount, ready} = props
-  const status = !ready ? 'opening' : pending ? 'checking' : issueCount ? 'invalid' : 'valid'
+  const {ready} = props
+  const status = inputStatus(props)
   return <>
     <header className={css.header}>
       <div className={css.brand}>
@@ -59,4 +59,14 @@ export default function EditorHeader(props: Props) {
       </div>
     </div>
   </>
+}
+
+function inputStatus({pending, issueCount, ready}: Props) {
+  if (!ready) {
+    return 'opening'
+  }
+  if (pending) {
+    return 'checking'
+  }
+  return issueCount ? 'invalid' : 'valid'
 }

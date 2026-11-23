@@ -1,20 +1,19 @@
-import type {Edit, EditContext} from './edits/index.ts'
+import type {SuggestedChangeData} from '#src/lib/aubitSchema.ts'
+import type {Edit} from './edits/index.ts'
 
 import {getFileLanguage} from '#src/lib/fileLanguage.ts'
 
-/** list of edits targeting one file */
+import {createEdit} from './edits/index.ts'
+
 export class SuggestedChange {
+  readonly data: SuggestedChangeData
   readonly edits: ReadonlyArray<Edit>
-  readonly file: string
-  constructor(file: string, edits: ReadonlyArray<Edit>) {
-    this.file = file
-    this.edits = edits
+  constructor(data: SuggestedChangeData) {
+    this.data = data
+    this.edits = (Array.isArray(data.edit) ? data.edit : [data.edit]).map(createEdit)
   }
-  get context(): EditContext {
-    return {
-      file: this.file,
-      language: this.language,
-    }
+  get file() {
+    return this.data.file
   }
   get fileName() {
     return this.file.split('/').at(-1) ?? this.file

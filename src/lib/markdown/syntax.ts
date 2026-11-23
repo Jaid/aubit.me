@@ -25,7 +25,6 @@ export const codeBlock = (text: string, language = '') => {
   const fence = '`'.repeat(Math.max(3, longestRun(text, '`') + 1))
   return `${fence}${language}\n${trimFinalNewline(text)}\n${fence}`
 }
-/** renders a unified diff block from removed and added text */
 export const diffBlock = (removed: string | undefined, added: string | undefined) => {
   const lines: Array<string> = []
   if (removed !== undefined) {
@@ -40,8 +39,7 @@ export const diffBlock = (removed: string | undefined, added: string | undefined
   }
   return codeBlock(lines.join('\n'), 'diff')
 }
-/** escapes characters that would otherwise be interpreted as inline Markdown or HTML */
-export const escapeMarkdown = (text: string) => text.replaceAll(/[!#()*+\-.<>[\\\]_\x60{|}~]/g, String.raw`\$&`)
+export const escapeMarkdown = (text: string) => text.replaceAll(/[!#()*+\-.<>[\\\]_`{|}~]/g, String.raw`\$&`)
 /** escapes pipes and line breaks so the text fits into a single GFM table cell */
 export const tableCell = (text: string) => escapeMarkdown(text).replaceAll(/\r?\n/g, ' ')
 export const isMultiline = (text: string) => trimFinalNewline(text).includes('\n')

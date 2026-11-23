@@ -61,7 +61,6 @@ const byName: Record<string, string> = {
   '.editorconfig': 'ini',
   '.npmrc': 'ini',
 }
-/** guesses a Markdown code fence language from a file path; returns an empty string if unknown */
 export const getFileLanguage = (file: string) => {
   const name = file.split(/[/\\]/).at(-1)?.toLowerCase() ?? ''
   if (byName[name]) {

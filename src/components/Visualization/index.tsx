@@ -1,13 +1,12 @@
 import type {Category, Finding, PriorityLevel, Report} from '#src/lib/report/index.ts'
 import type {CSSProperties, ReactNode} from 'react'
 
-import clsx from 'clsx'
 import {useEffect, useState} from 'react'
 
 import EditView from '#component/EditView'
 import FindingCard from '#component/FindingCard'
-import Markdown from '#component/Markdown'
 import {formatCount, pluralize} from '#src/lib/format.ts'
+import {getNavigationIndex} from '#src/lib/getNavigationIndex.ts'
 import {Category as CategoryClass, Priority} from '#src/lib/report/index.ts'
 
 import css from './style.module.sass'
@@ -120,7 +119,7 @@ const FileGroups = ({findings, onReveal, activeFindingId, renderTitleAction}: {
           <div className={css.touchHeader}>
             <button className={css.touchFinding} title='Reveal in editor' type='button' onClick={() => onReveal?.(finding)}>
               <span className={css.touchBadge}>{finding.priority.code}</span>
-              <Markdown inline source={finding.title} />
+              <span>{finding.title}</span>
             </button>
             {renderTitleAction?.(finding)}
           </div>
@@ -141,7 +140,6 @@ const FileGroups = ({findings, onReveal, activeFindingId, renderTitleAction}: {
     </section>}
   </>
 }
-/** interactive dashboard for a report */
 export default ({report, activeFindingId, allDisabled, onReveal, renderTitleAction}: Props) => {
   const [query, setQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<ReadonlySet<PriorityLevel>>(() => new Set)
@@ -181,8 +179,6 @@ export default ({report, activeFindingId, allDisabled, onReveal, renderTitleActi
       setVisibleLimit(Math.ceil((index + 1) / 100) * 100)
     }
   }, [activeFindingId, findings, visibleLimit])
-  const categoryFilterLabel = categoryFilter ? CategoryClass.all.find(category => category.id === categoryFilter)?.label : undefined
-  const worst = report.worstPriority
   if (report.isEmpty) {
     return <div className={css.empty}>
       <div className={css.emptyIcon} aria-hidden>✓</div>
@@ -190,9 +186,11 @@ export default ({report, activeFindingId, allDisabled, onReveal, renderTitleActi
       <div className={css.emptyText}>{allDisabled ? 'Turn on a finding in Edit to include it here.' : <>Add entries below <code>entries:</code> in the editor to see them here.</>}</div>
     </div>
   }
+  const categoryFilterLabel = categoryFilter ? CategoryClass.all.find(category => category.id === categoryFilter)?.label : undefined
+  const worst = report.sorted[0].priority
   return <div className={css.container}>
     <section className={css.summary}>
-      <div className={css.headline} style={worst ? toneStyle(worst.hue, worst.chroma) : undefined}>
+      <div className={css.headline} style={toneStyle(worst.hue, worst.chroma)}>
         <span className={css.total}>{formatCount(report.findings.length)}</span>
         <span className={css.totalLabel}>
           <span className={css.totalNoun}>{report.findings.length === 1 ? 'finding' : 'findings'}</span>
@@ -217,16 +215,16 @@ export default ({report, activeFindingId, allDisabled, onReveal, renderTitleActi
       <div
         className={css.segmented} aria-label='Group by' role='radiogroup' onKeyDown={event => {
           const index = groupModes.findIndex(mode => mode.id === groupMode)
-          const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (index + 1) % groupModes.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (index + groupModes.length - 1) % groupModes.length : event.key === 'Home' ? 0 : event.key === 'End' ? groupModes.length - 1 : -1
-          if (next < 0) {
+          const next = getNavigationIndex(event.key, index, groupModes.length, true)
+          if (next === undefined) {
             return
           }
           event.preventDefault()
           setGroupMode(groupModes[next].id)
-          event.currentTarget.querySelectorAll<HTMLButtonElement>('button')[next]?.focus()
+          event.currentTarget.querySelectorAll<HTMLButtonElement>('button')[next].focus()
         }}
       >
-        {groupModes.map(mode => <button key={mode.id} className={clsx(css.segmentButton)} aria-checked={groupMode === mode.id} role='radio' tabIndex={groupMode === mode.id ? 0 : -1} type='button' onClick={() => setGroupMode(mode.id)}>{mode.label}</button>)}
+        {groupModes.map(mode => <button key={mode.id} className={css.segmentButton} aria-checked={groupMode === mode.id} role='radio' tabIndex={groupMode === mode.id ? 0 : -1} type='button' onClick={() => setGroupMode(mode.id)}>{mode.label}</button>)}
       </div>
     </div>
     {isFiltered && <div className={css.filterNote}>

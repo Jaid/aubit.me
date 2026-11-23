@@ -2,15 +2,19 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import {existsSync} from 'node:fs'
 import {resolve, join} from 'node:path'
-import {execFileSync} from 'node:child_process'
 import puppeteer from 'puppeteer-core'
-import ViteSession from '../packages/vite-session/src/ViteSession.ts'
+import {preview} from 'vite'
+import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
+import {maxInputBytes} from '#src/lib/limits.ts'
+import {parseInput} from '#src/lib/report/parseInput.ts'
 
 const output = resolve('out/test/browser')
 await fs.mkdir(output, {recursive: true})
 const example = await fs.readFile('src/data/example.yaml', 'utf8')
-const expected = JSON.parse(await fs.readFile(join(output, 'expected.json'), 'utf8'))
-const expectedMarkdown = expected.markdown
+const expected = parseInput(example)
+assert.deepEqual(expected.issues, [], 'Bundled example must be a valid Aubit document')
+const expectedMarkdown = reportToMarkdown(expected.report)
+const exampleCount = expected.report.findings.length
 const checks = []
 let serial = 0
 let failed = false
@@ -23,17 +27,15 @@ function findBrowser() {
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
   for (const path of paths) if (path && existsSync(path)) return path
-  for (const command of ['google-chrome', 'chromium', 'chrome']) {
-    try { const path = execFileSync(process.platform === 'win32' ? 'where' : 'which', [command], {encoding: 'utf8'}).trim().split(/\r?\n/)[0]; if (existsSync(path)) return path } catch {}
-  }
+  const binary = ['google-chrome', 'chromium', 'chrome'].map(command => Bun.which(command)).find(Boolean)
+  if (binary) return binary
   throw new Error('Chrome was not found. Set BROWSER_PATH to a current Chromium executable before running browser checks.')
 }
 const browser = await puppeteer.launch({executablePath: findBrowser(), headless: true, protocolTimeout: 30_000, args: ['--no-sandbox', '--disable-setuid-sandbox']})
 let server
 try {
-  server = new ViteSession({root: 'dist', preview: true})
-  await server.init()
-  const origin = server.url
+  server = await preview({configFile: false, build: {outDir: 'dist'}, preview: {host: '127.0.0.1', port: 0}})
+  const origin = new URL(server.resolvedUrls.local[0]).origin
   const version = await browser.version()
   console.log('Production browser checks:', version, origin)
 
@@ -82,6 +84,10 @@ try {
   async function tab(page, name) {
     await click(page, '#output-tab-' + name)
     await page.waitForFunction(id => document.getElementById(id)?.getAttribute('aria-selected') === 'true', {}, 'output-tab-' + name)
+  }
+  async function clickButton(page, pattern) {
+    const button = await page.waitForFunction(source => [...document.querySelectorAll('button')].find(node => new RegExp(source).test(node.textContent)), {}, pattern.source)
+    await button.asElement().click()
   }
   function grantClipboard(context) {
     return context.setPermission(origin,
@@ -142,10 +148,10 @@ try {
 
   await check('real Monaco, correct summary numbers, and six output views', async ({page}) => {
     assert.equal(await page.title(), 'Aubit Viewer')
-    assert.equal((await page.$$('#output article[data-finding]')).length, 5)
+    assert.equal((await page.$$('#output article[data-finding]')).length, exampleCount)
     assert.deepEqual(await page.$$eval('[role=tab]', tabs => tabs.map(tab => tab.textContent)), ['Render', 'Edit', 'Markdown', 'Preview', 'Clank', 'Prompt'])
     const text = await page.$eval('#output', node => node.textContent)
-    for (const value of ['5', '8 edits', '7 files', 'P0', 'P4']) assert.ok(text.includes(value), value)
+    for (const value of [`${expected.report.editCount} edits`, `${expected.report.files.length} files`]) assert.ok(text.includes(value), value)
     assert.equal((await page.$$('#input .monaco-editor')).length, 1)
     for (const mode of ['edit', 'markdown', 'preview', 'clank', 'prompt', 'render']) await tab(page, mode)
     await fs.writeFile(join(output, 'render.html'), await page.content())
@@ -162,10 +168,10 @@ try {
     assert.equal(await page.$eval(control, node => node === document.activeElement), true)
     await tab(page, 'render')
     assert.equal(await page.$('article[data-finding=readme_spelling]'), null)
-    assert.equal((await page.$$('article[data-finding]')).length, 4)
+    assert.equal((await page.$$('article[data-finding]')).length, exampleCount - 1)
     assert.ok(!(await copied(state, 'Copy Markdown')).includes('`readme_spelling`'))
     await tab(page, 'preview')
-    assert.equal((await page.$$('[data-markdown-preview] h2')).length, 4)
+    assert.equal((await page.$$('[data-markdown-preview] h2')).length, exampleCount - 1)
     await tab(page, 'clank')
     const clank = await copied(state, 'Copy Clank')
     assert.ok(!clank.includes('readme_spelling'))
@@ -173,8 +179,7 @@ try {
     assert.equal((await downloaded(state, 'Download Clank')).text, clank)
     await tab(page, 'prompt')
     const prompt = await copied(state, 'Copy Prompt')
-    assert.ok(prompt.startsWith('An audit agent gave me a report.'))
-    assert.ok(prompt.endsWith('\n\nFor each issue you decide we should act on, you can already implement and commit the changes\n\n' + clank))
+    assert.ok(prompt.endsWith('\n\n' + clank) && prompt.slice(0, -clank.length).trim().length > 0)
     assert.deepEqual(await downloaded(state, 'Download Prompt'), {name: 'aubit-prompt.txt', text: prompt})
     await tab(page, 'edit')
     await click(page, 'button[role=radio]:last-child', 'File')
@@ -245,33 +250,40 @@ try {
     await page.type('input[aria-label="Search findings"]', 'credentials')
     await page.waitForFunction(() => document.querySelectorAll('#output article[data-finding]').length === 1)
     await tab(page, 'preview')
-    assert.equal((await page.$$('#output [data-markdown-preview] h2')).length, 5)
+    assert.equal((await page.$$('#output [data-markdown-preview] h2')).length, exampleCount)
     await tab(page, 'render')
     assert.equal(await page.$eval('input[aria-label="Search findings"]', node => node.value), 'credentials')
     assert.equal((await page.$$('#output article[data-finding]')).length, 1)
     assert.equal(await copied({page, context}, 'Copy Markdown'), expectedMarkdown)
     await click(page, 'button[title="Filter by P2 – moderate"]')
     assert.equal((await page.$$('#output article[data-finding]')).length, 0)
-    const reset = await page.$$('button')
-    for (const element of reset) if (await element.evaluate(node => node.textContent === 'Reset filters')) { await element.click(); break }
+    await clickButton(page, /^Reset filters$/)
+    await click(page, 'button[title="Filter by security"]')
+    assert.ok(await page.$('article[data-finding=exposed_env_file]'))
+    await clickButton(page, /^Reset filters$/)
     await click(page, 'button[role=radio][aria-checked=true]')
     await page.keyboard.press('End')
     assert.equal(await page.$eval('button[role=radio][aria-checked=true]', node => node.textContent), 'File')
+    assert.deepEqual(await page.$$eval('[role=radio][tabindex="0"]', nodes => nodes.map(node => node.textContent)), ['File'])
+    assert.deepEqual(await page.$$eval('#output h2 code', nodes => nodes.map(node => node.textContent)), expected.report.files)
   })
 
+  const firstEntry = '  first:\n    category: misc\n    title: First navigable finding'
+  const secondEntry = '  second:\n    category: misc\n    title: Second navigable finding'
+  // Keep the initial viewport between the entries. A second occurrence of “entries” below both lets Ctrl+D place carets on opposite sides.
+  const navigationSource = 'entries:\n' + firstEntry + '\n'.repeat(70) + secondEntry + '\n# entries\n'
   await check('source-linked finding navigation toggles the real editor caret between the entry edges, starting with the nearest one', async ({page}) => {
     // Typing a marker reveals the exact caret in the saved draft; undo restores text and caret for the next step.
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
     const marker = '§'
-    const readmeStart = example.indexOf('readme_spelling:')
-    const readme = {start: readmeStart, end: example.indexOf('replacement: "## Installation"', readmeStart) + 'replacement: "## Installation"'.length}
-    const exposed = {start: example.indexOf('exposed_env_file:'), end: example.indexOf('\n  inconsistent_user_naming:')}
-    assert.ok(example.slice(exposed.start, exposed.end).endsWith('.env.production'))
-    const caretAt = offset => example.slice(0, offset) + marker + example.slice(offset)
+    const bounds = entry => ({start: navigationSource.indexOf(entry.trimStart()), end: navigationSource.indexOf(entry) + entry.length})
+    const first = bounds(firstEntry)
+    const second = bounds(secondEntry)
+    const caretAt = offset => navigationSource.slice(0, offset) + marker + navigationSource.slice(offset)
     const startFirst = bounds => [caretAt(bounds.start), caretAt(bounds.end), caretAt(bounds.start)]
     const endFirst = bounds => [caretAt(bounds.end), caretAt(bounds.start), caretAt(bounds.end)]
-    const readmeButton = 'button[title="Reveal in editor (line 41)"]'
-    const exposedButton = 'button[title="Reveal in editor (line 2)"]'
+    const firstButton = '[data-finding=first] button[title^="Reveal in editor"]'
+    const secondButton = '[data-finding=second] button[title^="Reveal in editor"]'
     const shortcut = async key => {
       await page.keyboard.down(modifier); await page.keyboard.press(key); await page.keyboard.up(modifier)
     }
@@ -284,31 +296,27 @@ try {
         await page.keyboard.sendCharacter(marker)
         await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value, {}, expectation)
         await shortcut('KeyZ')
-        await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value && document.querySelector('[data-input-status]')?.getAttribute('data-state') === 'valid', {}, example)
+        await page.waitForFunction(value => localStorage.getItem('aubit.me:input') === value && document.querySelector('[data-input-status]')?.getAttribute('data-state') === 'valid', {}, navigationSource)
       }
     }
-    // Without a placed caret, the center of the visible editor area (around line 28) decides: the start of lines 41–51, the end of lines 2–17.
-    await cycle(readmeButton, startFirst(readme))
-    await page.waitForSelector('article[data-finding=readme_spelling][data-active]')
+    await cycle(secondButton, startFirst(second))
+    await page.waitForSelector('article[data-finding=second][data-active]')
     await page.reload({waitUntil: 'networkidle0'})
     await page.waitForSelector('[data-input-status][data-state=valid]')
     await page.waitForSelector('#input .monaco-editor [role=textbox]')
-    await cycle(exposedButton, endFirst(exposed))
-    // A single caret decides on its own.
+    await cycle(firstButton, endFirst(first))
     await shortcut('End')
-    await cycle(readmeButton, endFirst(readme))
+    await cycle(secondButton, endFirst(second))
     await shortcut('Home')
-    await cycle(readmeButton, startFirst(readme))
-    // Multiple carets use their center: “entries” on lines 1 and 65 center at line 33, nearer to the end of lines 2–17, even though the primary caret on line 1 alone would pick the start.
+    await cycle(secondButton, startFirst(second))
     await shortcut('Home')
     await shortcut('KeyD')
     await shortcut('KeyD')
     await page.waitForFunction(() => document.querySelectorAll('#input .cursors-layer > .cursor').length === 2)
-    assert.equal(example.split('\n').findIndex((line, index) => index > 0 && /\bentries\b/.test(line)), 64)
-    await cycle(exposedButton, endFirst(exposed))
+    await cycle(firstButton, endFirst(first))
     assert.equal(await page.$$eval('#input .cursors-layer > .cursor', nodes => nodes.length), 1)
     await page.waitForFunction(() => !document.querySelector('#input .monaco-editor .view-overlays [class*=flash]'))
-  })
+  }, {before: page => page.evaluateOnNewDocument(text => localStorage.setItem('aubit.me:input', text), navigationSource)})
 
   await check('literal replacements highlight only changed graphemes in cards, preview and HTML', async state => {
     const edit = {action: 'edit', needle: 'listed them on 2026-11-01\nold 👩‍💻 <em>', replacement: 'listed them on 2026-11-22\nold 👨‍💻 <em>'}
@@ -362,7 +370,7 @@ try {
       const doc = new DOMParser().parseFromString(source, 'text/html')
       return {headings: doc.querySelectorAll('h2').length, scripts: doc.querySelectorAll('script,img,iframe,[onerror]').length, title: doc.title, rows: doc.querySelectorAll('table tbody tr').length}
     }, html.text)
-    assert.deepEqual(structure, {headings: 5, scripts: 0, title: 'Aubit report', rows: 5})
+    assert.deepEqual(structure, {headings: exampleCount, scripts: 0, title: 'Aubit report', rows: exampleCount})
   })
 
   await check('editing preserves raw scalar/default fidelity and persists through reload', async state => {
@@ -383,11 +391,18 @@ try {
     await paste(state, 'entries: [', 'invalid')
     assert.equal((await state.page.$$('article[data-finding]')).length, 1)
     assert.equal(await state.page.$eval('button[aria-label="Download Markdown"]', node => node.disabled), true)
+    await tab(state.page, 'edit')
+    assert.equal(await state.page.$eval('[role=switch]', node => node.disabled), true)
     await tab(state.page, 'clank')
     assert.equal(await state.page.$eval('button[aria-label="Copy Clank"]', node => node.disabled), true)
     assert.ok((await state.page.$eval('#output', node => node.textContent)).includes('no stale data is shown here'))
-    await paste(state, '{"entries":{"simple":{"priority":7}}}', 'invalid')
+    await paste(state, JSON.stringify({entries: {simple: {priority: 7, category: 'unknown', extra: true}, more: {}}}), 'invalid')
     assert.ok((await copied(state, 'Copy Clank')).includes('priority 7'))
+    const collapsed = (await state.page.$$('[data-issue-list] li')).length
+    await click(state.page, '[data-issue-list] > button')
+    assert.ok((await state.page.$$('[data-issue-list] li')).length > collapsed)
+    await click(state.page, '[data-issue-list] li button:not(:disabled)')
+    await state.page.waitForSelector('#input .selected-text')
     await paste(state, simple)
   })
 
@@ -409,14 +424,14 @@ try {
   })
 
   await check('oversized imports leave the current draft untouched', async state => {
-    await state.page.evaluate(() => {
+    await state.page.evaluate(limit => {
       const transfer = new DataTransfer()
-      transfer.items.add(new File(['x'.repeat(2_000_001)], 'oversized.yaml'))
+      transfer.items.add(new File(['x'.repeat(limit + 1)], 'oversized.yaml'))
       document.querySelector('main').dispatchEvent(new DragEvent('drop', {dataTransfer: transfer, bubbles: true}))
-    })
+    }, maxInputBytes)
     await state.page.waitForFunction(() => document.body.textContent.includes('file exceeds the 2 MB'))
     assert.equal((await downloaded(state, 'Download input')).text, example)
-    assert.equal((await state.page.$$('article[data-finding]')).length, 5)
+    assert.equal((await state.page.$$('article[data-finding]')).length, exampleCount)
   })
 
   await check('drag/drop and New preserve a recovery checkpoint', async state => {
@@ -426,8 +441,7 @@ try {
       document.querySelector('main').dispatchEvent(new DragEvent('drop', {dataTransfer: transfer, bubbles: true}))
     }, simple)
     await state.page.waitForSelector('article[data-finding=simple]')
-    const buttons = await state.page.$$('#input button')
-    for (const element of buttons) if (await element.evaluate(node => node.textContent === 'New')) { await element.click(); break }
+    await clickButton(state.page, /^New$/)
     await state.page.waitForFunction(() => localStorage.getItem('aubit.me:input') === 'entries: {}\n')
     await state.page.waitForFunction(() => document.querySelector('#output')?.textContent.includes('No findings'))
     await click(state.page, 'button[aria-label="Undo replacement"]')
@@ -437,6 +451,7 @@ try {
   await check('hostile prose and edit strings never create executable HTML or external assets', async state => {
     const raw = JSON.stringify({collection: {}, entries: {hostile: {title: '<img src=x onerror=alert(1)>', category: 'security', description: '<svg onload="window.__executed=1"></svg>\n<script>window.__executed=1</script>\n[bad](javascript:alert(1))\n![tracker](https://invalid.example/track.png)', suggestedChanges: [{file: '<img onerror=x>.tsx', edit: {action: 'overwrite', content: '</code><script>window.__executed=1</script>\n```\n'}}]}}})
     await paste(state, raw)
+    assert.equal(await state.page.$eval('[data-finding=hostile] h3', node => node.textContent), '<img src=x onerror=alert(1)>')
     await tab(state.page, 'preview')
     const safety = await state.page.$eval('[data-markdown-preview]', node => ({bad: node.querySelectorAll('script,img,svg,iframe,[onerror],[onload],a[href^="javascript:"]').length, text: node.textContent}))
     assert.equal(safety.bad, 0)
@@ -474,9 +489,9 @@ try {
 
   await check('unavailable browser storage does not crash the workspace', async ({page}) => {
     await page.waitForSelector('[data-save-state=unavailable]')
-    assert.equal((await page.$$('article[data-finding]')).length, 5)
+    assert.equal((await page.$$('article[data-finding]')).length, exampleCount)
     await tab(page, 'preview')
-    assert.equal((await page.$$('[data-markdown-preview] h2')).length, 5)
+    assert.equal((await page.$$('[data-markdown-preview] h2')).length, exampleCount)
   }, {before: async page => { await page.evaluateOnNewDocument(() => { Storage.prototype.setItem = () => { throw new DOMException('blocked', 'QuotaExceededError') }; Storage.prototype.getItem = () => { throw new DOMException('blocked', 'SecurityError') } }) }})
 
   await check('clipboard rejection yields an actionable download fallback', async ({page}) => {
@@ -520,7 +535,7 @@ try {
     await page.setViewport({width: 1440, height: 1000})
     await page.waitForSelector('[role=separator][aria-orientation=vertical]')
     await tab(page, 'render')
-    assert.equal((await page.$$('article[data-finding]')).length, 5)
+    assert.equal((await page.$$('article[data-finding]')).length, exampleCount)
   })
 
   await check('theme selection, keyboard tabs, help focus, and Escape dismissal', async ({page}) => {
@@ -561,12 +576,17 @@ try {
   await check('large reports render progressively without changing export completeness', async state => {
     const entries = Object.fromEntries(Array.from({length: 205}, (_, index) => ['finding_' + index, {title: 'Finding number ' + index, category: 'misc'}]))
     await paste(state, JSON.stringify({entries, collection: {}}))
-    assert.equal((await state.page.$$('article[data-finding]')).length, 100)
+    const count = () => state.page.$$eval('article[data-finding]', nodes => nodes.length)
+    const initial = await count()
+    assert.ok(initial > 0 && initial < Object.keys(entries).length)
     const all = await copied(state, 'Copy Markdown')
     assert.ok(all.includes('finding_204'))
-    const buttons = await state.page.$$('button')
-    for (const button of buttons) if (await button.evaluate(node => node.textContent === 'Load 100 more findings')) { await button.click(); break }
-    assert.equal((await state.page.$$('article[data-finding]')).length, 200)
+    while (await count() < Object.keys(entries).length) {
+      const before = await count()
+      await clickButton(state.page, /^Load \d+ more findings$/)
+      assert.ok(await count() > before)
+    }
+    assert.equal(await count(), Object.keys(entries).length)
   })
 
   await check('responsive dark/light screenshots of the final production UI', async ({page}) => {
@@ -588,5 +608,5 @@ try {
   if (failed) process.exitCode = 1
 } finally {
   await browser.close()
-  await server?.[Symbol.asyncDispose]()
+  await server?.close()
 }

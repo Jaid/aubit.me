@@ -7,7 +7,7 @@ export function useDraft(ready: boolean, notify: (message: string) => void) {
   const [text, setText] = useState(readDraft)
   const [replacementId, setReplacementId] = useState(0)
   const [backup, setBackup] = useState(() => readStorage(backupKey))
-  const [saveState, setSaveState] = useState('saving')
+  const [saveState, setSaveState] = useState<'conflict' | 'saved' | 'saving' | 'too-large' | 'unavailable'>('saving')
   const current = useRef(text)
   const conflicted = useRef(false)
   const update = useCallback((next: string) => {

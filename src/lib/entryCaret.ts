@@ -5,18 +5,15 @@ export type EntryBounds = {
   /** first non-whitespace character, right of the indentation of the first contentful line */
   start: number
 }
-/** edge of an entry the caret can be placed at */
 export type EntryEdge = 'end' | 'start'
 /** position used to decide which entry edge is nearer; `y` is a vertical coordinate, `offset` breaks ties between edges on the same visual line */
 export type EntryPoint = {
   offset?: number
   y: number
 }
-/** caret placement applied by a reveal */
 export type EntryCaret = {
   bounds: EntryBounds
   edge: EntryEdge
-  /** character offset of the caret */
   offset: number
 }
 type NextEntryCaretOptions = {
@@ -24,7 +21,6 @@ type NextEntryCaretOptions = {
   current?: number
   /** edge nearest to the user’s point of interest, used when the toggle starts over */
   nearest?: EntryEdge
-  /** caret placement returned by the previous reveal */
   previous?: EntryCaret
 }
 const isWhitespace = (character: string) => /\s/.test(character)
@@ -46,7 +42,7 @@ export const getEntryBounds = (text: string, start: number, end: number): EntryB
   while (to > from && isWhitespace(text[to - 1])) {
     to--
   }
-  if (from === to) {
+  if (from >= to) {
     return undefined
   }
   return {
@@ -72,11 +68,7 @@ export const getNearestEntryEdge = (start: EntryPoint, end: EntryPoint, referenc
   return 'end'
 }
 
-/**
- * Repeated reveals of the same entry toggle the caret between its two edges – the start of the first contentful line (right of the indentation) and the end of the last contentful line – starting with the edge nearest to the user’s point of interest. Nothing gets selected.
- *
- * The toggle continues only while the caret is still where the previous reveal put it, so moving the caret, selecting text, editing the entry or revealing another entry starts over with the nearest edge. If that would not move the caret, the other edge is used instead.
- */
+/** Continue toggling only while the caret is still where the previous reveal left it. */
 export const getNextEntryCaret = (bounds: EntryBounds, {current, nearest = 'end', previous}: NextEntryCaretOptions = {}): EntryCaret => {
   if (previous && current === previous.offset && isSameBounds(previous.bounds, bounds)) {
     return createCaret(bounds, getOppositeEdge(previous.edge))

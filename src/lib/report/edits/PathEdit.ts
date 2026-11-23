@@ -4,7 +4,6 @@ import {inlineCode} from '#src/lib/markdown/syntax.ts'
 
 import {Edit} from './base/Edit.ts'
 
-/** changes the location of a file or folder */
 export abstract class PathEdit extends Edit {
   readonly to: string
   readonly tone: EditTone = 'structural'
@@ -12,10 +11,8 @@ export abstract class PathEdit extends Edit {
     super()
     this.to = to
   }
-/** resulting path after the operation */
   abstract resolveTarget(file: string): string
 }
-/** keeps the folder and changes the name */
 export class RenameEdit extends PathEdit {
   readonly action = 'rename'
   resolveTarget(file: string) {
@@ -29,7 +26,6 @@ export class RenameEdit extends PathEdit {
     return `Rename to ${inlineCode(this.to)}.`
   }
 }
-/** moves to an entirely new path */
 export class MoveEdit extends PathEdit {
   readonly action = 'move'
   resolveTarget() {

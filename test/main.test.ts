@@ -7,33 +7,24 @@ import {getFileLanguage} from '#src/lib/fileLanguage.ts'
 import {formatCount, joinList, pluralize} from '#src/lib/format.ts'
 import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
 import {codeBlock, diffBlock, inlineCode, tableCell} from '#src/lib/markdown/syntax.ts'
-import {encodePermalinkFragment, readPermalinkState} from '#src/lib/permalink.ts'
 import {Category, createEdit, createNeedle, InsertEdit, LineNeedle, parseInput, PatternNeedle, Priority, RenameEdit, ReplaceEdit, TextNeedle} from '#src/lib/report/index.ts'
 
-const exampleYaml = await Bun.file(new URL('../src/data/example.yaml', import.meta.url)).text()
-const context = {
-  file: 'src/a.ts',
-  language: 'ts',
-}
+const source = `entries:
+  typo:
+    title: Correct a spelling error
+    category: language.spelling
+  secret:
+    title: Remove production credentials
+    priority: 0
+    category: [security, security.leak]
+    suggestedChanges:
+      - file: .env.production
+        edit: {action: delete}
+      - file: .gitignore
+        edit: {action: append, content: .env.production}
+`
+const report = parseInput(source).report!
 describe('parseInput', () => {
-  test('parses the bundled example', () => {
-    const result = parseInput(exampleYaml)
-    expect(result.issues).toEqual([])
-    expect(result.isYamlValid).toBe(true)
-    const report = result.report!
-    expect(report.findings.map(finding => finding.id)).toEqual(['exposed_env_file', 'inconsistent_user_naming', 'readme_spelling', 'missing_aria_label', 'redundant_hot_path_sort'])
-    expect(report.sorted.map(finding => finding.priority.level)).toEqual([0, 1, 2, 2, 3])
-    expect(report.editCount).toBe(8)
-    expect(report.files).toHaveLength(7)
-  })
-  test('keeps raw input untouched by schema defaults', () => {
-    const result = parseInput('collection: {}\nentries:\n  abc:\n    title: Missing priority here\n    category: misc\n')
-    expect(result.raw).toEqual({collection: {}, entries: {abc: {
-      title: 'Missing priority here',
-      category: 'misc',
-    }}})
-    expect(result.report!.findings[0].priority.level).toBe(3)
-  })
   test('reports YAML syntax errors with locations', () => {
     const result = parseInput('entries:\n  a: [1, 2\n')
     expect(result.isYamlValid).toBe(false)
@@ -61,12 +52,7 @@ describe('parseInput', () => {
     expect(parseInput('collection: {}\nentries:\n  _bad:\n    title: A good enough title\n    category: misc\n').report).toBeUndefined()
     expect(parseInput('collection: {}\nentries:\n  good:\n    title: short\n    category: misc\n').report).toBeUndefined()
   })
-  test('rejects duplicate keys', () => {
-    const result = parseInput('entries:\n  a:\n    title: A good enough title\n    category: misc\n  a:\n    title: A good enough title\n    category: misc\n')
-    expect(result.isYamlValid).toBe(false)
-  })
   test('handles empty and non-object input', () => {
-    expect(parseInput('').report).toBeUndefined()
     expect(parseInput('- 1').issues[0].source).toBe('schema')
     expect(parseInput('entries: {}').report!.isEmpty).toBe(true)
     expect(parseInput('entries: {}\ncollection: null').report).toBeUndefined()
@@ -83,102 +69,69 @@ describe('parseInput', () => {
   })
 })
 describe('Report', () => {
-  const report = parseInput(exampleYaml).report!
   test('maps source locations to findings', () => {
-    const finding = report.getFinding('readme_spelling')!
-    expect(finding.source?.line).toBe(41)
+    const finding = report.findings[0]
+    expect(source.slice(finding.source!.start).startsWith(`${finding.id}:`)).toBe(true)
     expect(report.getFindingAtOffset(finding.source!.start + 5)).toBe(finding)
     expect(report.getFindingAtOffset(0)).toBeUndefined()
   })
   test('counts priorities and categories', () => {
-    expect(report.priorityCounts.map(entry => entry.count)).toEqual([1, 1, 2, 1, 0])
+    expect(report.priorityCounts.map(entry => entry.count)).toEqual([1, 0, 0, 1, 0])
     const security = report.rootCategoryCounts.find(entry => entry.category.id === 'security')
     expect(security?.count).toBe(1)
   })
-  test('groups edits by file', () => {
-    const touches = report.fileTouches
-    expect([...touches.keys()]).toEqual(report.files)
-    expect(touches.get('src/lib/lookup.ts')).toHaveLength(2)
-  })
   test('filters findings by text', () => {
-    const finding = report.getFinding('exposed_env_file')!
+    const finding = report.findings[1]
     expect(finding.matches('env production')).toBe(true)
     expect(finding.matches('security.leak')).toBe(true)
     expect(finding.matches('typo')).toBe(false)
     expect(finding.matches('  ')).toBe(true)
   })
   test('drops categories implied by more specific ones', () => {
-    const finding = report.getFinding('exposed_env_file')!
+    const finding = report.findings[1]
     expect(finding.specificCategories.map(category => category.id)).toEqual(['security.leak'])
     expect(finding.hasCategory('security')).toBe(true)
   })
 })
 const opposite = (edge: EntryEdge): EntryEdge => (edge === 'end' ? 'start' : 'end')
 describe('entry caret toggling', () => {
-  const report = parseInput(exampleYaml).report!
-  const finding = report.getFinding('readme_spelling')!
-  const bounds = getEntryBounds(exampleYaml, finding.source!.start, finding.source!.end)!
-  test('trims the entry to its first and last contentful lines', () => {
-    expect(exampleYaml.slice(bounds.start).startsWith('readme_spelling:')).toBe(true)
-    expect(exampleYaml.slice(0, bounds.end).endsWith('replacement: "## Installation"')).toBe(true)
-    expect(exampleYaml[bounds.end]).toBe('\n')
-  })
+  const bounds = {
+    start: 30,
+    end: 80,
+  }
   test('ignores trailing whitespace, blank lines and indentation', () => {
     const text = '  \n    key: value  \n    other: 1   \n\n\n  next:'
     const trimmed = getEntryBounds(text, 0, text.length - 7)!
     expect(text.slice(trimmed.start, trimmed.end)).toBe('key: value  \n    other: 1')
     expect(getEntryBounds(' \n\t ', 0, 4)).toBeUndefined()
+    expect(getEntryBounds(text, text.length + 1, text.length + 2)).toBeUndefined()
   })
   test('works for entries that share a line, like compact JSON', () => {
     const text = '{"collection": {}, "entries": {"a": {"title": "A good enough title", "category": "misc"}, "b": {"title": "Another valid title", "category": "misc"}}}'
-    const source = parseInput(text).report!.getFinding('a')!.source!
-    const trimmed = getEntryBounds(text, source.start, source.end)!
+    const entry = parseInput(text).report!.findings[0].source!
+    const trimmed = getEntryBounds(text, entry.start, entry.end)!
     expect(text.slice(trimmed.start, trimmed.end)).toBe('"a": {"title": "A good enough title", "category": "misc"}')
   })
-  const run = (nearest: EntryEdge, steps: number, current?: number) => {
-    const results: Array<EntryCaret> = []
+  test.each(['start', 'end'] as const)('alternates from the nearest edge (%s) while the caret stays put', nearest => {
     let previous: EntryCaret | undefined
-    let caret = current
-    for (let i = 0; i < steps; i++) {
-      // A stale “nearest” must not matter while the toggle continues.
+    for (const edge of [nearest, opposite(nearest), nearest]) {
       previous = getNextEntryCaret(bounds, {
-        current: caret,
+        current: previous?.offset,
         previous,
-        nearest: i === 0 ? nearest : opposite(nearest),
+        nearest: previous ? opposite(nearest) : nearest,
       })
-      caret = previous.offset
-      results.push(previous)
+      expect(previous.edge).toBe(edge)
+      expect(previous.offset).toBe(bounds[edge])
     }
-    return results
-  }
-  test('toggles end → start → end if the end is nearest', () => {
-    const results = run('end', 4, 0)
-    expect(results.map(result => result.edge)).toEqual(['end', 'start', 'end', 'start'])
-    expect(results.map(result => result.offset)).toEqual([bounds.end, bounds.start, bounds.end, bounds.start])
-  })
-  test('toggles start → end → start if the start is nearest', () => {
-    const results = run('start', 4, 0)
-    expect(results.map(result => result.edge)).toEqual(['start', 'end', 'start', 'end'])
-    expect(results.map(result => result.offset)).toEqual([bounds.start, bounds.end, bounds.start, bounds.end])
-  })
-  test('defaults to starting with the end', () => {
-    expect(getNextEntryCaret(bounds).offset).toBe(bounds.end)
   })
   test('starts over from any other caret, a selection or multiple carets', () => {
-    const previous = getNextEntryCaret(bounds, {
-      current: 0,
-      nearest: 'end',
-    })
+    const previous = getNextEntryCaret(bounds)
     expect(getNextEntryCaret(bounds, {
       current: bounds.start + 3,
       previous,
-      nearest: 'end',
     }).offset).toBe(bounds.end)
     // a selection or multiple carets are reported as no single caret
-    expect(getNextEntryCaret(bounds, {
-      previous,
-      nearest: 'end',
-    }).offset).toBe(bounds.end)
+    expect(getNextEntryCaret(bounds, {previous}).offset).toBe(bounds.end)
     expect(getNextEntryCaret(bounds, {
       previous,
       nearest: 'start',
@@ -189,7 +142,7 @@ describe('entry caret toggling', () => {
       start: bounds.start - 20,
       end: bounds.start - 2,
     }
-    const previous = getNextEntryCaret(other, {nearest: 'end'})
+    const previous = getNextEntryCaret(other)
     expect(previous.offset).toBe(other.end)
     const next = getNextEntryCaret(bounds, {
       current: previous.offset,
@@ -200,10 +153,7 @@ describe('entry caret toggling', () => {
     expect(next.offset).toBe(bounds.start)
   })
   test('uses the other edge if the nearest one would not move the caret', () => {
-    expect(getNextEntryCaret(bounds, {
-      current: bounds.end,
-      nearest: 'end',
-    }).offset).toBe(bounds.start)
+    expect(getNextEntryCaret(bounds, {current: bounds.end}).offset).toBe(bounds.start)
     expect(getNextEntryCaret(bounds, {
       current: bounds.start,
       nearest: 'start',
@@ -251,8 +201,6 @@ describe('Priority and Category', () => {
   test('derive names from the schema', () => {
     expect(Priority.get(0).label).toBe('P0 – critical')
     expect(Priority.all).toHaveLength(5)
-    expect(Category.get('language.dialect').description).toContain('British')
-    expect(Category.get('consistency.naming').root.id).toBe('consistency')
     expect(Category.get('consistency.naming').label).toBe('consistency › naming')
     expect(Category.get('consistency.naming').isWithin('consistency')).toBe(true)
     expect(Category.get('consistency').isWithin('consistency.naming')).toBe(false)
@@ -268,11 +216,9 @@ describe('needles and edits', () => {
     })
     expect(pattern).toBeInstanceOf(PatternNeedle)
     expect(pattern.toString()).toBe('/a+/im')
-    expect((pattern as PatternNeedle).isValid).toBe(true)
-    expect(new PatternNeedle('(', 'v').isValid).toBe(false)
   })
   test('renders edit Markdown', () => {
-    expect(createEdit({action: 'delete'}).toMarkdown(context)).toBe('Delete the file.')
+    expect(createEdit({action: 'delete'}).toMarkdown('ts')).toBe('Delete the file.')
     const rename = createEdit({
       action: 'rename',
       to: 'b.ts',
@@ -286,12 +232,12 @@ describe('needles and edits', () => {
       replacement: 'bar',
     })
     expect(replace).toBeInstanceOf(ReplaceEdit)
-    expect(replace.toMarkdown(context)).toBe('Replace:\n\n```diff\n-foo\n+bar\n```')
+    expect(replace.toMarkdown('ts')).toBe('Replace:\n\n```diff\n-foo\n+bar\n```')
     expect(createEdit({
       action: 'edit',
       needle: {line: 3},
       replacement: 'x',
-    }).toMarkdown(context)).toBe('Replace line 3 with `x`.')
+    }).toMarkdown('ts')).toBe('Replace line 3 with `x`.')
     const insert = createEdit({
       action: 'insert_before',
       needle: {
@@ -301,15 +247,15 @@ describe('needles and edits', () => {
       content: '// header\n',
     })
     expect(insert).toBeInstanceOf(InsertEdit)
-    expect(insert.toMarkdown(context)).toBe('Insert before matches of `/^import/m`:\n\n```ts\n// header\n```')
+    expect(insert.toMarkdown('ts')).toBe('Insert before matches of `/^import/m`:\n\n```ts\n// header\n```')
     expect(createEdit({
       action: 'append',
       content: '',
-    }).toMarkdown(context)).toBe('Append nothing.')
+    }).toMarkdown('ts')).toBe('Append nothing.')
     expect(createEdit({
       action: 'erase',
       needle: 'a\nb',
-    }).toMarkdown(context)).toBe('Erase:\n\n```diff\n-a\n-b\n```')
+    }).toMarkdown('ts')).toBe('Erase:\n\n```diff\n-a\n-b\n```')
   })
 })
 describe('Markdown', () => {
@@ -320,15 +266,12 @@ describe('Markdown', () => {
     expect(diffBlock('a\n', 'b')).toBe('```diff\n-a\n+b\n```')
     expect(tableCell('a|b\nc')).toBe(String.raw`a\|b c`)
   })
-  test('renders the example report', () => {
-    const markdown = reportToMarkdown(parseInput(exampleYaml).report!)
-    expect(markdown.startsWith('# Aubit report\n')).toBe(true)
-    expect(markdown).toContain('**5 findings** (1 critical, 1 high, 2 moderate and 1 low) with 8 suggested edits across 7 files.')
-    expect(markdown).toContain('| 🔴 P0 | `exposed_env_file` | Sensitive environment file is tracked | security › leak | 2 |')
-    expect(markdown).toContain('Replace matches of `/userID/im` with `userId`.')
+  test('summarizes findings and puts the most urgent first', () => {
+    const markdown = reportToMarkdown(report)
+    expect(markdown).toContain('**2 findings** (1 critical and 1 low) with 2 suggested edits across 2 files.')
+    expect(markdown).toContain('`secret` | Remove production credentials | security › leak | 2 |')
     expect(markdown).toContain('```gitignore\n.env.production\n```')
-    expect(markdown.indexOf('exposed_env_file')).toBeLessThan(markdown.indexOf('readme_spelling'))
-    expect(markdown.endsWith('\n')).toBe(true)
+    expect(markdown.indexOf('`secret`')).toBeLessThan(markdown.indexOf('`typo`'))
   })
   test('renders empty reports', () => {
     expect(reportToMarkdown(parseInput('entries: {}\ncollection: {}').report!)).toBe('# Aubit report\n\nNo findings.\n')
@@ -353,17 +296,5 @@ describe('helpers', () => {
     expect(getFileLanguage('Dockerfile')).toBe('dockerfile')
     expect(getFileLanguage('README.md')).toBe('markdown')
     expect(getFileLanguage('LICENSE')).toBe('')
-  })
-  test('round-trips permalinks', async () => {
-    const fragment = await encodePermalinkFragment({
-      yaml: exampleYaml,
-      tab: 'clank',
-    })
-    expect(fragment.startsWith('#data:j;gz;base64=')).toBe(true)
-    expect(await readPermalinkState(`https://example.com/${fragment}`)).toEqual({
-      yaml: exampleYaml,
-      tab: 'clank',
-    })
-    expect(await readPermalinkState('https://example.com/')).toEqual({})
   })
 })

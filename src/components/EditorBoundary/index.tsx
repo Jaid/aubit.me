@@ -6,7 +6,6 @@ type Props = {
   children: ReactNode
   fallback: ReactNode
 }
-/** An editor-loading failure must not take the user's document down with it. */
 export default class EditorBoundary extends Component<Props, {failed: boolean}> {
   static getDerivedStateFromError() {
     return {failed: true}

@@ -6,8 +6,7 @@ import {getEntryBounds, getNearestEntryEdge, getNextEntryCaret} from './entryCar
 export type MonacoEditor = Parameters<NonNullable<MonacoEditorProps['onMount']>>[0]
 type MonacoModel = NonNullable<ReturnType<MonacoEditor['getModel']>>
 
-/** selects and reveals a source range in the editor */
-export const revealRange = (editor: MonacoEditor, start: number, end: number, {focus = true} = {}) => {
+export const revealRange = (editor: MonacoEditor, start: number, end: number) => {
   const model = editor.getModel()
   if (!model) {
     return
@@ -21,10 +20,8 @@ export const revealRange = (editor: MonacoEditor, start: number, end: number, {f
     endColumn: to.column,
   }
   editor.setSelection(selection)
-  editor.revealRangeInCenterIfOutsideViewport(selection, 0)
-  if (focus) {
-    editor.focus()
-  }
+  editor.revealRangeInCenterIfOutsideViewport(selection)
+  editor.focus()
 }
 
 /** character offset of the editor’s caret; undefined if there are multiple carets or text is selected */
@@ -39,7 +36,6 @@ export const getCaretOffset = (editor: MonacoEditor): number | undefined => {
 /** editors whose caret was placed by the user or by a reveal; before that, Monaco’s default caret at the document start is not a meaningful point of interest */
 const placedCarets = new WeakSet<MonacoEditor>
 
-/** starts treating the editor’s carets as user-placed once it gains text focus; returns a disposable */
 export const trackCaretPlacement = (editor: MonacoEditor): {dispose: () => void} => {
   if (editor.hasTextFocus()) {
     placedCarets.add(editor)
@@ -72,13 +68,9 @@ const getReferencePoint = (editor: MonacoEditor, model: MonacoModel): EntryPoint
 const getNearestEdge = (editor: MonacoEditor, model: MonacoModel, bounds: EntryBounds) => {
   return getNearestEntryEdge(getOffsetPoint(editor, model, bounds.start), getOffsetPoint(editor, model, bounds.end), getReferencePoint(editor, model))
 }
-/** last reveal per editor, so repeated reveals of the same entry can toggle between its edges */
 const previousCarets = new WeakMap<MonacoEditor, EntryCaret>
 
-/**
- * Places the caret at an edge of an entry’s source range. The first reveal jumps to whichever of the entry’s edges is nearest to the current caret (the center of all carets if there are multiple, the center of the visible area if no caret has been placed yet). Repeated reveals toggle between both edges. Nothing gets selected. Returns the trimmed entry range for highlighting, or undefined if there is nothing to reveal.
- */
-export const revealEntry = (editor: MonacoEditor, start: number, end: number, {focus = true} = {}) => {
+export const revealEntry = (editor: MonacoEditor, start: number, end: number) => {
   const model = editor.getModel()
   if (!model) {
     return
@@ -97,10 +89,8 @@ export const revealEntry = (editor: MonacoEditor, start: number, end: number, {f
   const position = model.getPositionAt(caret.offset)
   // setPosition() also collapses multiple carets and any selection into this single caret
   editor.setPosition(position)
-  editor.revealPositionInCenterIfOutsideViewport(position, 0)
-  if (focus) {
-    editor.focus()
-  }
+  editor.revealPositionInCenterIfOutsideViewport(position)
+  editor.focus()
   const from = model.getPositionAt(bounds.start)
   const to = model.getPositionAt(bounds.end)
   return {

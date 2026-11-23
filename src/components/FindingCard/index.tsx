@@ -4,7 +4,6 @@ import type {CSSProperties, MouseEvent, ReactNode} from 'react'
 import {useEffect, useRef} from 'react'
 
 import ChangeView from '#component/ChangeView'
-import Markdown from '#component/Markdown'
 
 import css from './style.module.sass'
 
@@ -16,15 +15,14 @@ type Props = {
   titleAction?: ReactNode
 }
 const hasTextSelection = () => {
-  const selection = globalThis.getSelection?.()
+  const selection = globalThis.getSelection()
   return Boolean(selection && !selection.isCollapsed)
 }
-/** one finding with its metadata and suggested changes */
 export default ({finding, isActive = false, onReveal, onCategorySelect, titleAction}: Props) => {
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
     if (isActive && document.activeElement?.closest('[data-input-editor]')) {
-      ref.current?.scrollIntoView?.({
+      ref.current?.scrollIntoView({
         block: 'nearest',
         behavior: 'smooth',
       })
@@ -46,7 +44,7 @@ export default ({finding, isActive = false, onReveal, onCategorySelect, titleAct
   return <article className={css.card} data-active={isActive || undefined} data-finding={finding.id} data-priority={finding.priority.level} style={style} ref={ref} onClick={handleClick}>
     <header className={css.header}>
       <span className={css.badge} title={finding.priority.label}>{finding.priority.code}</span>
-      <Markdown className={css.title} as='h3' inline source={finding.title} />
+      <h3 className={css.title}>{finding.title}</h3>
       {titleAction}
     </header>
     <div className={css.meta}>
@@ -64,7 +62,7 @@ export default ({finding, isActive = false, onReveal, onCategorySelect, titleAct
         </button>
       })}
     </div>
-    {finding.description && <Markdown className={css.description} source={finding.description} />}
+    {finding.description && <div className={css.description}>{finding.description}</div>}
     {finding.changes.length > 0 && <div className={css.changes}>
       {finding.changes.map((change, index) => <ChangeView key={`${index}:${change.file}`} change={change} />)}
     </div>}

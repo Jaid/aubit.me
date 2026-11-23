@@ -6,9 +6,6 @@ import {joinList, pluralize} from '#src/lib/format.ts'
 
 import {codeBlock, escapeMarkdown, inlineCode, tableCell} from './syntax.ts'
 
-export type ReportMarkdownOptions = {
-  title?: string
-}
 const renderSummary = (report: Report) => {
   const priorities = report.priorityCounts.filter(entry => entry.count > 0).map(({priority, count}) => `${count} ${priority.name}`)
   const findings = pluralize(report.findings.length, 'finding')
@@ -23,34 +20,30 @@ const renderOverview = (report: Report) => {
   })
   return ['| Priority | ID | Finding | Categories | Edits |', '| --- | --- | --- | --- | ---: |', ...rows].join('\n')
 }
-const renderFinding = (finding: Finding, report: Report) => {
+const renderFinding = (finding: Finding) => {
   const categories = finding.specificCategories.map(category => category.label).join(', ')
   const parts = [`## ${finding.priority.emoji} ${escapeMarkdown(finding.title)}`, `**${finding.priority.label}** · ${inlineCode(finding.id)} · ${categories}`]
   if (finding.description?.trim()) {
     parts.push(escapeMarkdown(finding.description))
   }
-  for (const [index, change] of finding.changes.entries()) {
+  for (const change of finding.changes) {
     parts.push(`### ${inlineCode(change.file)}`)
     for (const edit of change.edits) {
-      parts.push(edit.toMarkdown(change.context))
+      parts.push(edit.toMarkdown(change.language))
     }
-    const exact = report.data?.entries[finding.id]?.suggestedChanges?.[index]
-    if (exact) {
-      parts.push('Change data (YAML; preserves exact paths and content):', codeBlock(stringify(exact, {lineWidth: 0}), 'yaml'))
-    }
+    parts.push('Change data (YAML; preserves exact paths and content):', codeBlock(stringify(change.data, {lineWidth: 0}), 'yaml'))
   }
   return parts.join('\n\n')
 }
-/** renders a complete, self-contained Markdown document for the report */
-export const reportToMarkdown = (report: Report, {title = 'Aubit report'}: ReportMarkdownOptions = {}) => {
-  const parts = [`# ${title}`]
+export const reportToMarkdown = (report: Report) => {
+  const parts = ['# Aubit report']
   if (report.isEmpty) {
     parts.push('No findings.')
     return `${parts.join('\n\n')}\n`
   }
   parts.push(renderSummary(report), 'Suggested edits are illustrative, not executable patches. This report includes all enabled findings, regardless of search or view filters.', renderOverview(report))
   for (const finding of report.sorted) {
-    parts.push('---', renderFinding(finding, report))
+    parts.push('---', renderFinding(finding))
   }
   return `${parts.join('\n\n')}\n`
 }

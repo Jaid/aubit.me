@@ -11,7 +11,6 @@ type Props = {
   path: string
   value: string
 }
-/** read-only Monaco view for generated output */
 export default ({value, language, path, label}: Props) => {
   const theme = useTheme()
   return <div className={css.container}>

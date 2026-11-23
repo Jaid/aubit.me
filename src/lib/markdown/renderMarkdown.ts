@@ -76,9 +76,7 @@ const sanitize = (html: string) => DOMPurify.sanitize(html, {
   ALLOW_ARIA_ATTR: false,
 })
 export const renderMarkdown = (markdown: string) => sanitize(marked.parse(markdown, {async: false}))
-export const renderInlineMarkdown = (markdown: string) => sanitize(marked.parseInline(markdown, {async: false}))
 
-/** A self-contained, script-free export with no remote assets. */
 export function htmlDocument(markdown: string) {
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><meta name="color-scheme" content="dark light"><title>Aubit report</title><style>body{max-width:980px;margin:2rem auto;padding:0 1rem;font:16px/1.65 system-ui,sans-serif}pre{padding:.8rem 1rem;border:1px solid #8885;border-radius:8px;overflow:auto}code{font-family:ui-monospace,monospace}table{border-collapse:collapse;width:100%}th,td{border:1px solid #8885;padding:.35rem .6rem;text-align:left}h2{margin-top:2rem}a{color:inherit}[data-diff]{display:block;white-space:break-spaces;overflow-wrap:anywhere}[data-diff=add]{color:light-dark(#176d35,#7dde98)}[data-diff=remove]{color:light-dark(#aa283b,#ff9aaa)}${diffStyles}@media print{body{font-size:11pt}pre,tr{break-inside:avoid}}</style></head><body>\n${renderMarkdown(markdown)}\n</body></html>\n`
 }

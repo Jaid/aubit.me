@@ -6,27 +6,22 @@ const tabKey = 'aubit.me:tab'
 
 export function readStorage(key: string) {
   try {
-    return globalThis.localStorage?.getItem(key) ?? undefined
-  } catch {
-
-  }
+    return localStorage.getItem(key) ?? undefined
+  } catch {}
 }
 export function writeStorage(key: string, value: string) {
   try {
-    if (!globalThis.localStorage) {
-      return false
-    }
-    globalThis.localStorage.setItem(key, value)
+    localStorage.setItem(key, value)
     return true
   } catch {
     return false
   }
 }
 export function readDraft() {
-  return readStorage(draftKey) ?? readStorage('aubit-viewer:input') ?? exampleYaml
+  return readStorage(draftKey) ?? exampleYaml
 }
 export function readTab() {
-  return readStorage(tabKey) ?? readStorage('aubit-viewer:tab')
+  return readStorage(tabKey)
 }
 export const saveText = (text: string) => writeStorage(draftKey, text)
 export const saveTab = (tab: string) => writeStorage(tabKey, tab)

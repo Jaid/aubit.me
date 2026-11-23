@@ -1,11 +1,11 @@
-/** Limits apply to file imports, drafts, parser workers, and shared links alike. */
 export const maxInputBytes = 2_000_000
 export const maxExpandedBytes = 8_000_000
 export const maxDepth = 64
 export const maxNodes = 100_000
 export const maxFindings = 5000
 export const maxPermalinkCharacters = 64_000
-export const inputByteLength = (text: string) => (new TextEncoder).encode(text).byteLength
+const encoder = new TextEncoder
+export const inputByteLength = (text: string) => encoder.encode(text).byteLength
 
 export function assertInputSize(text: string) {
   if (inputByteLength(text) > maxInputBytes) {
@@ -13,7 +13,7 @@ export function assertInputSize(text: string) {
   }
 }
 
-/** Validate a JSON-like tree without losing cycles, aliases, or unsafe numeric values. */
+/** Count shared aliases at each use, but reject a reference to an ancestor. */
 export function assertSafeData(raw: unknown) {
   const ancestors = new WeakSet<object>
   let budget = maxExpandedBytes

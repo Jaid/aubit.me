@@ -2,7 +2,6 @@ import {codeBlock, inlineCode, isMultiline, trimFinalNewline} from '#src/lib/mar
 
 import {Needle} from './base/Needle.ts'
 
-/** literal text that is searched for */
 export class TextNeedle extends Needle {
   readonly kind = 'text'
   readonly text: string

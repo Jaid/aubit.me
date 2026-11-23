@@ -4,7 +4,7 @@ A local-first workbench for Aubit code-audit reports. Edit YAML or JSON, navigat
 
 ## Run
 
-Use Bun 1.4.2 or newer. Node 26 or newer is needed for the production browser checks, not for the deployed website.
+Use the Bun version pinned in `package.json`. The production browser checks also require Chrome or Chromium.
 
 ```sh
 bun install --frozen-lockfile
@@ -84,7 +84,7 @@ Draft text, a replacement-recovery copy, theme, selected tab, and pane layout ar
 
 Open, New, Example, incoming share links, and Format create a recovery checkpoint. Undo replacement swaps back to that checkpoint. Storage failures are shown in the footer rather than crashing the app. If another tab changes the saved draft, autosave pauses in this tab; the user can download it, reload, or explicitly choose **Save this tab**. That action preserves the other tab's saved text as the recovery copy.
 
-Sharing is opt-in. A generated link contains the **entire editor text** in a compressed URL fragment. Anyone holding it can read the report. New links never put report data in the query string, and consumed links are removed from the address bar. Original Claude fragment links and Grok `?yaml=` links are accepted for migration. Malformed or oversized links leave the saved draft intact. No analytics, third-party scripts, or report-upload calls are implemented.
+Sharing is opt-in. A share link contains the **entire editor text** in a compressed, versioned URL fragment. Anyone holding it can read the report. After the report opens, the viewer removes the fragment from the address bar. Malformed or oversized links leave the saved draft intact. The viewer does not read reports from query parameters.
 
 ## Safety budgets
 
@@ -101,7 +101,7 @@ Sharing is opt-in. A generated link contains the **entire editor text** in a com
 
 Parsing runs in a dedicated worker and stale responses are discarded. Decompression is streamed into a bounded buffer. Extremely large reports should be split; rejected input remains editable and downloadable.
 
-Monacozen guards recursive YAML aliases in its YAML language service (since 0.5.1). Anchors and aliases remain in schema-aware YAML mode; the application's bounded parser remains authoritative. Only oversized input falls back to the syntax-only editor.
+Anchors and aliases remain in schema-aware YAML mode; the application’s bounded parser remains authoritative. Only oversized input falls back to the syntax-only editor.
 
 ## Keyboard
 
@@ -118,7 +118,9 @@ bun run test-live
 bun run check
 ```
 
-The component tests isolate Monaco for deterministic UI-unit checks. **Production browser checks use real Chrome, real Monaco, real workers, native paste, completed downloads, and production static serving.** They check page/console errors, outbound requests, source navigation, all views, raw-data fidelity, malicious input, storage/clipboard failure paths, recovery, responsive resizing, and dark/light screenshots.
+`bun run test` runs unit tests for parsing, source mapping, caret placement, exports and sharing. `bun run test-live` serves the production build and exercises the UI in Chromium with real Monaco workers, native paste and completed downloads. The checks cover source navigation, all views, export fidelity, storage and clipboard failures, recovery and responsive layouts. Each check also fails on browser errors or unexpected outbound requests.
+
+Type checking uses TypeScript 7. Typed ESLint rules use TypeScript Classic because the current `@typescript-eslint/parser` requires the classic compiler API.
 
 The browser runner finds Chrome/Chromium in common Windows, macOS, and Linux locations. Set `BROWSER_PATH` for another installation:
 
@@ -130,12 +132,6 @@ bun run test-live
 Results are written to `out/test/browser/results.json`; screenshots, DOM captures, and completed exports are stored beside it. `TEST_FILTER` can run a focused browser check during debugging. The full verification is the unfiltered run.
 
 The supported target is current desktop Chromium with responsive narrow layouts. Browser emulation of 360/432-pixel screens is covered; it is not a claim of testing on physical phones or Safari. Browser clipboard access requires HTTPS or localhost.
-
-## Implementation lineage
-
-Claude Opus 5.5's Aubit Viewer is the visual/domain-model base. GPT-6.1 Sol's ideas informed bounded parsing, raw-data fidelity, literal-safe exports, production serving, lazy chunk preservation, Oxc builds, and broader acceptance checks. Additional engineering includes worker isolation, streaming-bounded share links, cross-tab recovery, progressive rendering, source-order preservation for numeric-looking IDs, and the Monaco YAML guard.
-
-Detailed decisions and provenance: `docs/implementation.md`. Latest locally recorded verification: `docs/verification.md`.
 
 ## License
 

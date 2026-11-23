@@ -22,27 +22,22 @@ type FindingOptions = {
   changes: ReadonlyArray<SuggestedChange>
   description?: string
   id: string
-  index: number
   priority: Priority
   source?: EntrySource
   title: string
   visible: boolean
 }
-/** one entry of an Aubit report */
 export class Finding {
   readonly categories: ReadonlyArray<Category>
   readonly changes: ReadonlyArray<SuggestedChange>
   readonly description: string | undefined
   readonly id: string
-  /** position in the input document */
-  readonly index: number
   readonly priority: Priority
   readonly source: EntrySource | undefined
   readonly title: string
   readonly visible: boolean
   constructor(options: FindingOptions) {
     this.id = options.id
-    this.index = options.index
     this.title = options.title
     this.description = options.description
     this.priority = options.priority
@@ -57,14 +52,12 @@ export class Finding {
   get files() {
     return [...new Set(this.changes.map(change => change.file))]
   }
-/** categories without the ones implied by a more specific category in the same finding */
   get specificCategories() {
     return this.categories.filter(category => !this.categories.some(other => other !== category && other.isWithin(category)))
   }
   hasCategory(id: string) {
     return this.categories.some(category => category.isWithin(id))
   }
-/** case-insensitive full-text match against the most relevant fields */
   matches(query: string) {
     const needle = query.trim().toLowerCase()
     if (!needle) {

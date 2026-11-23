@@ -19,7 +19,7 @@ import css from './style.module.sass'
 
 export const outputTabs = ['render', 'edit', 'markdown', 'preview', 'clank', 'prompt'] as const
 export type OutputTab = typeof outputTabs[number]
-export const readOutputTab = (value?: string): OutputTab | undefined => (value === 'visualization' ? 'render' : outputTabs.find(tab => tab === value))
+export const readOutputTab = (value?: string) => outputTabs.find(tab => tab === value)
 const definitions: ReadonlyArray<TabDefinition<OutputTab>> = outputTabs.map(key => ({
   key,
   label: key[0].toUpperCase() + key.slice(1),
@@ -47,7 +47,7 @@ export default function OutputPane({result, current, pending, isStale, text, tab
   const reportKey = result?.collection.has(selected) ? selected : ''
   const report = reportKey ? result?.collection.get(reportKey) : result?.report
   const activeFindingId = !isStale && cursorOffset !== undefined ? report?.getFindingAtOffset(cursorOffset)?.id : undefined
-  const enabledReport = useMemo(() => (report?.findings.some(finding => !finding.visible) ? new Report(report.findings.filter(finding => finding.visible), report.data) : report), [report])
+  const enabledReport = useMemo(() => (report?.findings.some(finding => !finding.visible) ? new Report(report.findings.filter(finding => finding.visible)) : report), [report])
   const markdown = useMemo(() => (enabledReport ? reportToMarkdown(enabledReport) : ''), [enabledReport])
   const shown = tab === 'edit' ? report : enabledReport
   const entrySwitch = (finding: Finding) => <EntrySwitch id={finding.id} disabled={isStale && !pending || !finding.source?.visibilityEdit} enabled={finding.visible} pending={pending} title={finding.source?.visibilityEdit ? undefined : 'Edit this entry’s visibility directly in the source.'} onToggle={() => onToggleVisibility(finding)} />
@@ -70,10 +70,22 @@ export default function OutputPane({result, current, pending, isStale, text, tab
     }
   }
   const {format, extension} = {
-    prompt: {format: 'Prompt', extension: '.txt'},
-    clank: {format: 'Clank', extension: '.clank'},
-    preview: {format: 'HTML', extension: '.html'},
-    markdown: {format: 'Markdown', extension: '.md'},
+    prompt: {
+      format: 'Prompt',
+      extension: '.txt',
+    },
+    clank: {
+      format: 'Clank',
+      extension: '.clank',
+    },
+    preview: {
+      format: 'HTML',
+      extension: '.html',
+    },
+    markdown: {
+      format: 'Markdown',
+      extension: '.md',
+    },
   }[tab === 'render' || tab === 'edit' ? 'markdown' : tab]
   return <section className={css.pane} aria-label='Report output'>
     <header className={css.header}>

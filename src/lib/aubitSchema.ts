@@ -11,6 +11,7 @@ export type PriorityLevel = AubitItem['priority']
 export type EditData = ArrayableItem<SuggestedChangeData['edit']>
 export type EditAction = EditData['action']
 export type NeedleData = Extract<EditData, {needle: unknown}>['needle']
+export type SuggestedChangeData = NonNullable<AubitItem['suggestedChanges']>[number]
 type ArrayableItem<Value> = Value extends ReadonlyArray<infer Item> ? Item : Value
 type JsonSchemaNode = {
   $defs?: Record<string, JsonSchemaNode>
@@ -21,7 +22,6 @@ type JsonSchemaNode = {
   description?: string
   properties?: Record<string, JsonSchemaNode>
 }
-type SuggestedChangeData = NonNullable<AubitItem['suggestedChanges']>[number]
 
 const rootSchema = documentJsonSchema as JsonSchemaNode
 const resolve = (node: JsonSchemaNode): JsonSchemaNode => {

@@ -1,10 +1,9 @@
-import type {EditContext, EditTone} from './base/Edit.ts'
+import type {EditTone} from './base/Edit.ts'
 
 import {codeBlock, trimFinalNewline} from '#src/lib/markdown/syntax.ts'
 
 import {Edit} from './base/Edit.ts'
 
-/** writes literal content to the file */
 export abstract class ContentEdit extends Edit {
   readonly content: string
   abstract readonly lead: string
@@ -15,7 +14,7 @@ export abstract class ContentEdit extends Edit {
   get lines() {
     return trimFinalNewline(this.content).split('\n')
   }
-  toMarkdown({language}: EditContext) {
+  toMarkdown(language: string) {
     if (this.content === '') {
       return `${this.lead.replace(/:$/, '')} nothing.`
     }

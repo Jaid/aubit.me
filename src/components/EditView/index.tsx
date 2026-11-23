@@ -104,7 +104,6 @@ type Props = {
   change: SuggestedChange
   edit: Edit
 }
-/** visual representation of a single edit */
 export default ({edit, change}: Props) => {
   const {inline, block} = getEditParts(edit, change)
   return <div className={css.edit} data-action={edit.action} data-tone={edit.tone} style={{'--tone': toneHues[edit.tone]} as CSSProperties}>

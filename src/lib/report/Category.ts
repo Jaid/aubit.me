@@ -14,7 +14,6 @@ const rootHues: Record<string, number> = {
   documentation: 270,
   misc: 0,
 }
-/** hierarchical finding category like “security.leak” */
 export class Category {
   static readonly all: ReadonlyArray<Category> = categoryDefinitions.map(Category.fromDefinition)
   static get(id: CategoryId) {
@@ -42,15 +41,8 @@ export class Category {
   get isRoot() {
     return this.segments.length === 1
   }
-  /** for example “security › leak” */
   get label() {
     return this.segments.join(' › ')
-  }
-  get leafName() {
-    return this.segments.at(-1)!
-  }
-  get root() {
-    return Category.get(this.rootId as CategoryId)
   }
   get rootId() {
     return this.segments[0]
@@ -61,7 +53,6 @@ export class Category {
   get segments() {
     return this.id.split('.')
   }
-/** whether this category equals the given one or is nested below it */
   isWithin(other: Category | string) {
     const otherId = typeof other === 'string' ? other : other.id
     return this.id === otherId || this.id.startsWith(`${otherId}.`)

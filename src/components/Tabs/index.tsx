@@ -1,5 +1,7 @@
 import type {KeyboardEvent, ReactNode} from 'react'
 
+import {getNavigationIndex} from '#src/lib/getNavigationIndex.ts'
+
 import css from './style.module.sass'
 
 export type TabDefinition<Key extends string> = {
@@ -14,22 +16,10 @@ type Props<Key extends string> = {
   onChange: (key: Key) => void
   tabs: ReadonlyArray<TabDefinition<Key>>
 }
-/** accessible tab strip following the WAI-ARIA tabs pattern */
 export default <Key extends string>({tabs, activeKey, onChange, idPrefix, label}: Props<Key>) => {
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = tabs.findIndex(tab => tab.key === activeKey)
-    const offsets: Record<string, number> = {
-      ArrowLeft: -1,
-      ArrowRight: 1,
-    }
-    let nextIndex: number | undefined
-    if (event.key in offsets) {
-      nextIndex = (index + offsets[event.key] + tabs.length) % tabs.length
-    } else if (event.key === 'Home') {
-      nextIndex = 0
-    } else if (event.key === 'End') {
-      nextIndex = tabs.length - 1
-    }
+    const nextIndex = getNavigationIndex(event.key, index, tabs.length)
     if (nextIndex === undefined) {
       return
     }

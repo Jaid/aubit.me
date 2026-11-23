@@ -1,5 +1,4 @@
 @use '../../styles/tone' as *
-@use '../../styles/prose' as *
 
 .card
   position: relative
@@ -50,8 +49,6 @@
   line-height: 1.3
   text-wrap: pretty
   user-select: text
-  code
-    font-size: 0.9em
 
 .meta
   display: flex
@@ -95,15 +92,12 @@
   opacity: 0.75
 
 .description
-  @include prose
+  white-space: pre-wrap
+  overflow-wrap: anywhere
   font-size: 13.5px
   line-height: 1.5
   color: light-dark(#333, #c9c9c9)
   user-select: text
-  > :first-child
-    margin-top: 0
-  > :last-child
-    margin-bottom: 0
 
 .changes
   display: flex

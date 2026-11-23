@@ -34,7 +34,6 @@ const appearances: Record<PriorityLevel, PriorityAppearance> = {
     chroma: 0.01,
   },
 }
-/** severity level of a finding, P0 (critical) to P4 (trivial) */
 export class Priority {
   static readonly all: ReadonlyArray<Priority> = priorityDefinitions.map(Priority.fromDefinition)
   static get(level: PriorityLevel) {
@@ -69,7 +68,6 @@ export class Priority {
   get hue() {
     return this.appearance.hue
   }
-/** for example “P0 – critical” */
   get label() {
     return `${this.code} – ${this.name}`
   }

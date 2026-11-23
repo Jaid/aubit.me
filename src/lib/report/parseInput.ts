@@ -18,7 +18,7 @@ export type InputIssue = {
   source: IssueSource
 }
 
-/** Transferable worker result. No class instances or executable data cross the boundary. */
+/** structured-cloneable data exchanged with the parser worker */
 export type ParseSnapshot = {
   clank: string | null
   data?: DocumentData
@@ -53,7 +53,6 @@ export function inputFailure(text: string, message: string): ParseSnapshot {
 const formatPath = (path: ReadonlyArray<number | string>) => path.map(segment => (typeof segment === 'number' ? `[${segment}]` : `.${segment}`)).join('').replace(/^\./, '')
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const findingCount = (value: unknown) => (isRecord(value) && isRecord(value.entries) ? Object.keys(value.entries).length : 0)
-
 const withVisibleEntries = (report: Record<string, unknown>) => {
   if (!isRecord(report.entries)) {
     return report
@@ -65,9 +64,11 @@ const withVisibleEntries = (report: Record<string, unknown>) => {
     const {visible, ...fields} = entry
     return visible === false ? [] : [[id, fields]]
   })
-  return {...report, entries: Object.fromEntries(entries)}
+  return {
+    ...report,
+    entries: Object.fromEntries(entries),
+  }
 }
-
 /** Project only report entries, keeping raw values available even when schema validation fails. */
 const clankData = (raw: unknown) => {
   if (!isRecord(raw)) {
@@ -77,10 +78,13 @@ const clankData = (raw: unknown) => {
   if (!isRecord(raw.collection)) {
     return root
   }
-  return {...root, collection: Object.fromEntries(Object.entries(raw.collection).map(([id, report]) => [id, isRecord(report) ? withVisibleEntries(report) : report]))}
+  return {
+    ...root,
+    collection: Object.fromEntries(Object.entries(raw.collection).map(([id, report]) => [id, isRecord(report) ? withVisibleEntries(report) : report])),
+  }
 }
 
-/** Never throws for user input. Raw data is captured BEFORE Zod defaults or domain normalization. */
+/** Capture raw data before schema defaults or domain normalization. */
 export function parseSnapshot(text: string): ParseSnapshot {
   const result: ParseSnapshot = {
     text,
@@ -99,9 +103,7 @@ export function parseSnapshot(text: string): ParseSnapshot {
     try {
       JSON.parse(text)
       result.language = 'json'
-    } catch {
-      // JSON is also valid YAML.
-    }
+    } catch {}
     const lineCounter = new LineCounter
     const document = parseDocument(text, {
       lineCounter,
@@ -135,7 +137,6 @@ export function parseSnapshot(text: string): ParseSnapshot {
     }})
     const raw: unknown = document.toJS({maxAliasCount: 100})
     assertSafeData(raw)
-    // Arrayable values and missing defaults stay exactly as parsed for Clank and formatting.
     const clank = stringifyClank(clankData(raw) as Parameters<typeof stringifyClank>[0])
     Object.assign(result, {
       raw,
@@ -192,7 +193,6 @@ export function materializeSnapshot(snapshot: ParseSnapshot): ParseResult {
   }
 }
 
-/** Synchronous entry for unit tests and non-UI use. The application uses a dedicated worker. */
 export const parseInput = (text: string) => materializeSnapshot(parseSnapshot(text))
 
 export function formatInput(raw: unknown, language: 'json' | 'yaml') {

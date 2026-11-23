@@ -17,11 +17,19 @@ import {useReport} from '#src/hooks/useReport.ts'
 import {downloadText} from '#src/lib/download.ts'
 import {exampleYaml, layoutStorage, readTab, saveTab} from '#src/lib/inputStore.ts'
 import {assertInputSize, inputByteLength, maxInputBytes} from '#src/lib/limits.ts'
-import {consumePermalink, readPermalinkState} from '#src/lib/permalink.ts'
+import {readPermalinkState} from '#src/lib/permalink.ts'
 import {formatInput} from '#src/lib/report/parseInput.ts'
 
 import css from './style.module.sass'
 
+const narrowScreen = matchMedia('(max-width: 720px)')
+const saveLabels = {
+  conflict: 'Another tab saved · autosave paused',
+  saved: 'Saved locally',
+  saving: 'Saving…',
+  'too-large': 'Too large to save · download your text',
+  unavailable: 'Local save unavailable · download your text',
+}
 export default function App() {
   const [ready, setReady] = useState(false)
   const [notice, setNotice] = useState('')
@@ -36,7 +44,7 @@ export default function App() {
   const help = useRef<HTMLDialogElement>(null)
   const linkSequence = useRef(0)
   const fileSequence = useRef(0)
-  const isNarrow = useMediaQuery('(max-width: 720px)')
+  const isNarrow = useMediaQuery(narrowScreen)
   const orientation = isNarrow ? 'vertical' : 'horizontal'
   const layout = useDefaultLayout({
     id: `aubit.me:panes:${orientation}`,
@@ -54,11 +62,12 @@ export default function App() {
       const before = current.current
       setReady(false)
       try {
-        const state = await readPermalinkState(location.href)
+        const url = new URL(location.href)
+        const state = await readPermalinkState(url)
         if (disposed || id !== linkSequence.current) {
           return
         }
-        if (state.yaml !== undefined) {
+        if (state && location.href === url.href) {
           if (current.current !== before) {
             notify('The shared report was not applied because you edited this draft while it was opening.')
             return
@@ -69,7 +78,8 @@ export default function App() {
             if (sharedTab) {
               changeTab(sharedTab)
             }
-            consumePermalink()
+            url.hash = ''
+            history.replaceState(history.state, '', url)
           }
         }
       } catch (error) {
@@ -84,7 +94,7 @@ export default function App() {
     }
     openLink(true).catch(error => notify(String(error)))
     const changed = () => {
-      if (location.hash.startsWith('#data:') || new URL(location.href).searchParams.has('yaml')) {
+      if (location.hash.startsWith('#data:')) {
         openLink(false).catch(error => notify(String(error)))
       }
     }
@@ -144,21 +154,18 @@ export default function App() {
     }
   }
   const downloadInput = () => downloadText(text, `aubit-input.${result.language}`, result.language === 'json' ? 'application/json' : 'application/yaml')
-  const importFile = async (file: File) => {
-    const id = ++fileSequence.current
-    try {
-      if (file.size > maxInputBytes) {
-        throw new Error('This file exceeds the 2 MB input limit. Your draft is unchanged.')
-      }
-      const next = await file.text()
-      if (id !== fileSequence.current) {
-        return
-      }
-      assertInputSize(next)
-      replace(next, `Opened ${file.name}.`)
-    } catch (error) {
-      notify(Error.isError(error) ? error.message : 'The file could not be opened. Your draft is unchanged.')
+  const importFile = (file: File) => {
+    fileSequence.current++
+    if (file.size > maxInputBytes) {
+      notify('This file exceeds the 2 MB input limit. Your draft is unchanged.')
+      return
     }
+    const id = fileSequence.current
+    file.text().then(next => {
+      if (id === fileSequence.current) {
+        replace(next, `Opened ${file.name}.`)
+      }
+    }).catch(error => notify(Error.isError(error) ? error.message : 'The file could not be opened. Your draft is unchanged.'))
   }
   const format = (language: 'json' | 'yaml') => {
     try {
@@ -181,10 +188,10 @@ export default function App() {
       notify('Drop exactly one YAML or JSON report at a time.')
       return
     }
-    void importFile(event.dataTransfer.files[0])
+    importFile(event.dataTransfer.files[0])
   }
   const bytes = inputByteLength(text)
-  const saveLabel = draft.saveState === 'conflict' ? 'Another tab saved · autosave paused' : draft.saveState === 'saved' ? 'Saved locally' : draft.saveState === 'saving' ? 'Saving…' : draft.saveState === 'too-large' ? 'Too large to save · download your text' : 'Local save unavailable · download your text'
+  const saveLabel = saveLabels[draft.saveState]
   return <main
     className={css.workspace} data-app='aubit-viewer' onDragLeave={event => {
       if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
@@ -207,9 +214,7 @@ export default function App() {
       <Panel id='input' className={css.panel} defaultSize='42%' minSize={isNarrow ? '24%' : '280px'}>
         <div className={css.pane}>
           <EditorHeader
-            canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New document created.')} onOpenFile={file => {
-              importFile(file).catch(error => notify(String(error)))
-            }} onUndo={draft.restore}
+            canFormat={!pending && result.isYamlValid} canUndo={draft.hasBackup && ready} issueCount={result.issues.length} language={result.language} pending={pending} ready={ready} onDownload={downloadInput} onExample={() => replace(exampleYaml, 'Example loaded.')} onFormat={format} onHelp={() => help.current?.showModal()} onNew={() => replace('entries: {}\n', 'New document created.')} onOpenFile={importFile} onUndo={draft.restore}
           />
           <div className={css.paneBody}><InputEditor disabled={!ready} issues={pending ? [] : result.issues} language={result.language} value={text} ref={editor} onChange={draft.update} onCursorOffsetChange={setCursorOffset} /></div>
           {!pending && ready && <IssueList issues={result.issues} onReveal={revealIssue} />}

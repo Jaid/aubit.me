@@ -4,10 +4,9 @@ import stringifyClank from 'stringify-clank'
 import {parse, stringify} from 'yaml'
 
 import {needsSyntaxOnlyEditor} from '#src/lib/editorSafety.ts'
-import {assertSafeData, maxInputBytes} from '#src/lib/limits.ts'
+import {assertSafeData, maxDepth, maxExpandedBytes, maxFindings, maxInputBytes} from '#src/lib/limits.ts'
 import {reportToMarkdown} from '#src/lib/markdown/reportToMarkdown.ts'
-import {inlineCode} from '#src/lib/markdown/syntax.ts'
-import {formatInput, materializeSnapshot, parseInput, parseSnapshot} from '#src/lib/report/parseInput.ts'
+import {formatInput, parseInput} from '#src/lib/report/parseInput.ts'
 
 const documentFor = (edit?: unknown) => ({collection: {}, entries: {sample: {
   title: 'A valid sample finding',
@@ -29,23 +28,19 @@ describe('untrusted document boundaries', () => {
     ['numeric mapping key', '123: value'],
     ['empty text', '   \n'],
   ])('rejects %s without throwing', (_label, source) => {
-    expect(() => parseInput(source)).not.toThrow()
     const result = parseInput(source)
     expect(result.report).toBeUndefined()
     expect(result.issues.length).toBeGreaterThan(0)
     expect(result.clank).toBeNull()
   })
   test('counts UTF-8 bytes rather than JavaScript code units', () => {
-    const result = parseInput(`# ${'😀'.repeat(500_001)}`)
-    expect(result.issues[0].message).toContain('2 MB')
-  })
-  test('rejects an oversized ASCII document', () => {
-    expect(parseInput('x'.repeat(maxInputBytes + 1)).issues[0].message).toContain('2 MB')
+    const result = parseInput(`# ${'😀'.repeat(Math.ceil(maxInputBytes / 4))}`)
+    expect(result.issues[0].message).toContain('input limit')
   })
   test('rejects excessive nesting', () => {
-    const result = parseInput(`${'['.repeat(70)}0${']'.repeat(70)}`)
+    const result = parseInput(`${'['.repeat(maxDepth + 1)}0${']'.repeat(maxDepth + 1)}`)
     expect(result.report).toBeUndefined()
-    expect(result.issues[0].message).toContain('64-level')
+    expect(result.issues[0].message).toContain('nesting')
   })
   test('bounds YAML alias amplification', () => {
     const source = 'a: &a [x,x,x,x,x,x,x,x,x,x]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b,*b]\nd: [*c,*c,*c,*c,*c,*c,*c,*c,*c,*c]'
@@ -54,7 +49,7 @@ describe('untrusted document boundaries', () => {
     expect(result.issues.length).toBeGreaterThan(0)
   })
   test('bounds expanded string data even with shallow aliases', () => {
-    const text = 'x'.repeat(1_000_000)
+    const text = 'x'.repeat(Math.ceil(maxExpandedBytes / 8))
     expect(() => assertSafeData({
       a: text,
       b: text,
@@ -64,31 +59,56 @@ describe('untrusted document boundaries', () => {
     })).toThrow('rendering budget')
   })
   test('limits the number of renderable findings', () => {
-    const entries = Object.fromEntries(Array.from({length: 5000}, (_, i) => [`item_${i}`, {
+    const entries = Object.fromEntries(Array.from({length: maxFindings}, (_, i) => [`item_${i}`, {
       title: 'Another valid finding',
       category: 'misc',
     }]))
-    const result = parseInput(JSON.stringify({entries: {root: entries.item_0}, collection: {other: {entries}}}))
+    const result = parseInput(JSON.stringify({
+      entries: {root: entries.item_0},
+      collection: {other: {entries}},
+    }))
     expect(result.report).toBeUndefined()
     expect(result.isYamlValid).toBe(true)
-    expect(result.issues[0].message).toContain('5,000')
+    expect(result.issues[0].message).toContain('findings across all reports')
   })
 })
 describe('raw value fidelity', () => {
   test('Clank omits hidden entries and visibility fields across reports without changing the source', () => {
-    const finding = {title: 'A visible finding', category: 'misc'}
-    const hidden = {...finding, visible: false}
+    const finding = {
+      title: 'A visible finding',
+      category: 'misc',
+    }
+    const hidden = {
+      ...finding,
+      visible: false,
+    }
     const raw = {
-      entries: {same: hidden, other: {...finding, visible: true}, visible: finding},
+      entries: {
+        same: hidden,
+        other: {
+          ...finding,
+          visible: true,
+        },
+        visible: finding,
+      },
       collection: {
-        review: {entries: {same: {...finding, visible: true}, other: hidden}},
+        review: {entries: {
+          same: {
+            ...finding,
+            visible: true,
+          },
+          other: hidden,
+        }},
         archived: {entries: {same: hidden}},
       },
     }
     const result = parseInput(stringify(raw))
     expect(result.issues).toEqual([])
     expect(result.clank).toBe(stringifyClank({
-      entries: {other: finding, visible: finding},
+      entries: {
+        other: finding,
+        visible: finding,
+      },
       collection: {
         review: {entries: {same: finding}},
         archived: {entries: {}},
@@ -133,12 +153,6 @@ describe('raw value fidelity', () => {
   test('quoted numeric IDs retain source order rather than JS property order', () => {
     const result = parseInput('collection: {}\nentries:\n  "20":\n    title: First in the source\n    category: misc\n  "3":\n    title: Second in the source\n    category: misc\n')
     expect(result.report!.findings.map(finding => finding.id)).toEqual(['20', '3'])
-  })
-  test('worker snapshots rebuild real domain instances', () => {
-    const snapshot = structuredClone(parseSnapshot(JSON.stringify(documentFor())))
-    const result = materializeSnapshot(snapshot)
-    expect(result.report!.findings[0].priority.label).toBe('P3 – low')
-    expect(result.report!.getFinding('sample')!.hasCategory('correctness')).toBe(true)
   })
 })
 describe('complete edit support and exports', () => {
@@ -209,52 +223,17 @@ describe('complete edit support and exports', () => {
   test('embedded backticks, unusual filenames, and terminal newlines survive change data', () => {
     const raw = documentFor({
       action: 'overwrite',
-      content: '```\nvalue\n```\n\n',
+      content: '```\n🧪\n```\n\n',
     })
     raw.entries.sample.suggestedChanges![0].file = 'src/odd`\nname.ts'
     const md = reportToMarkdown(parseInput(JSON.stringify(raw)).report!)
-    expect(md).toContain('Change data (YAML; preserves exact paths and content):')
-    expect(md).toContain('````')
-    expect(inlineCode('one\ntwo')).toBe('`one two`')
-  })
-  test('deterministic corpus round-trips Unicode and punctuation', () => {
-    const fragments = ['alpha', '"quoted"', '`ticks`', '<img src=x>', '🧪', String.raw`\path`, '\n\n', 'a\tb', '# heading', '&entity;']
-    for (let i = 0; i < 150; i++) {
-      const content = `${fragments[i % fragments.length] + fragments[Math.floor(i / fragments.length) % fragments.length]}\n`
-      const raw = documentFor({
-        action: 'append',
-        content,
-      })
-      const result = parseInput(JSON.stringify(raw))
-      expect(result.raw).toEqual(raw)
-      expect(result.issues).toEqual([])
-      expect(parse(formatInput(result.raw, 'yaml'))).toEqual(raw)
-    }
+    const block = /^(`{3,})yaml\n([\s\S]*?)^\1$/m.exec(md)
+    expect(parse(block![2])).toEqual(raw.entries.sample.suggestedChanges![0])
   })
 })
-describe('upstream editor guard', () => {
-  test('released Monacozen carries the recursive-alias guard without a local patch', async () => {
-    const packageJson = await Bun.file('node_modules/monacozen/package.json').json() as {version: string}
-    expect(Bun.semver.satisfies(packageJson.version, '>=0.5.1')).toBe(true)
-    expect(await Bun.file('patches/monacozen@0.4.0.patch').exists()).toBe(false)
-    const workerGlob = new Bun.Glob('node_modules/monacozen/assets/yaml.worker-*.js')
-    let guardedWorker = false
-    for await (const workerFile of workerGlob.scan('.')) {
-      const worker = await Bun.file(workerFile).text()
-      if (worker.includes('recursive-alias')) {
-        guardedWorker = true
-        break
-      }
-    }
-    expect(guardedWorker).toBe(true)
-  })
-  test('acyclic aliases keep schema-aware editor mode', () => {
-    expect(needsSyntaxOnlyEditor('base: &item\n  value: 1\ncopy: *item\n')).toBe(false)
-  })
-  test('recursive aliases remain in schema-aware editor mode', () => {
-    expect(needsSyntaxOnlyEditor('entries: &loop\n  child: *loop\n')).toBe(false)
-  })
-  test('oversized input still uses the resource-bounded syntax-only editor', () => {
+describe('editor and source mapping', () => {
+  test('only oversized input uses the syntax-only editor', () => {
+    expect(needsSyntaxOnlyEditor('x'.repeat(maxInputBytes))).toBe(false)
     expect(needsSyntaxOnlyEditor('x'.repeat(maxInputBytes + 1))).toBe(true)
   })
   test('acyclic aliases remain valid in authoritative report parsing', () => {

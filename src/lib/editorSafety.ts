@@ -9,7 +9,6 @@ export function needsSyntaxOnlyEditor(text: string) {
   return inputByteLength(text) > maxInputBytes
 }
 
-/** A bounded, syntax-only fallback for oversized documents; authoritative validation still runs in our worker. */
 export function registerSafeYamlLanguage(monaco: MonacoApi) {
   if (monaco.languages.getLanguages().some(language => language.id === safeYamlLanguage)) {
     return

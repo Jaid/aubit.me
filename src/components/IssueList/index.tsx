@@ -11,7 +11,6 @@ type Props = {
   onReveal: (issue: InputIssue) => void
 }
 const collapsedLimit = 3
-/** list of YAML and schema problems below the editor */
 export default ({issues, onReveal}: Props) => {
   const [isExpanded, setIsExpanded] = useState(false)
   if (issues.length === 0) {

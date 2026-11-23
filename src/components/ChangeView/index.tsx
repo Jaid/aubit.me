@@ -7,7 +7,6 @@ import css from './style.module.sass'
 type Props = {
   change: SuggestedChange
 }
-/** all edits for one file */
 export default ({change}: Props) => {
   return <section className={css.change}>
     <header className={css.file} title={change.file}>
